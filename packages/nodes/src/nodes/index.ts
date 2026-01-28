@@ -40,6 +40,15 @@ export * from './social';
 // Utility APIs
 export * from './utilities';
 
+// Web Scraping
+export * from './scraping';
+
+// Search APIs
+export * from './search';
+
+// AI Agents
+export * from './agents';
+
 // Re-export all node types for easy registration
 import * as core from './core';
 import * as triggers from './triggers';
@@ -55,6 +64,9 @@ import * as integrations from './integrations';
 import * as developer from './developer';
 import * as social from './social';
 import * as utilities from './utilities';
+import * as scraping from './scraping';
+import * as search from './search';
+import * as agents from './agents';
 
 export const allNodes = {
   // Core
@@ -200,6 +212,45 @@ export const allNodes = {
 
   // Scheduling
   Calendly: utilities.Calendly,
+
+  // Web Scraping
+  Puppeteer: scraping.Puppeteer,
+  HTMLParser: scraping.HTMLParser,
+  ArticleExtractor: scraping.ArticleExtractor,
+  ScrapingBee: scraping.ScrapingBee,
+  BrightData: scraping.BrightData,
+  ScraperAPI: scraping.ScraperAPI,
+  PDFExtractor: scraping.PDFExtractor,
+  OCR: scraping.OCR,
+  WebMonitor: scraping.WebMonitor,
+
+  // Specialized Scrapers
+  JobBoardScraper: scraping.JobBoardScraper,
+  ReviewAggregator: scraping.ReviewAggregator,
+  PriceTracker: scraping.PriceTracker,
+  RealEstateScraper: scraping.RealEstateScraper,
+  SocialProfileScraper: scraping.SocialProfileScraper,
+  NewsAggregator: scraping.NewsAggregator,
+
+  // Search APIs
+  SerpAPI: search.SerpAPI,
+  BraveSearch: search.BraveSearch,
+  DuckDuckGo: search.DuckDuckGo,
+  BingSearch: search.BingSearch,
+  Wikipedia: search.Wikipedia,
+  ArXiv: search.ArXiv,
+  HackerNews: search.HackerNews,
+  ProductHunt: search.ProductHunt,
+  GoogleTrends: search.GoogleTrends,
+
+  // AI Agents
+  ResearchAgent: agents.ResearchAgent,
+  DataCollectorAgent: agents.DataCollectorAgent,
+  ContentGeneratorAgent: agents.ContentGeneratorAgent,
+  LeadEnrichmentAgent: agents.LeadEnrichmentAgent,
+  CompetitorAnalysisAgent: agents.CompetitorAnalysisAgent,
+  MonitoringAgent: agents.MonitoringAgent,
+  WorkflowOrchestratorAgent: agents.WorkflowOrchestratorAgent,
 };
 
 export const nodeList = Object.values(allNodes);
