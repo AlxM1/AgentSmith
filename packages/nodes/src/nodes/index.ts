@@ -34,6 +34,12 @@ export * from './integrations';
 // Developer Tools
 export * from './developer';
 
+// Social Media Nodes
+export * from './social';
+
+// Utility APIs
+export * from './utilities';
+
 // Re-export all node types for easy registration
 import * as core from './core';
 import * as triggers from './triggers';
@@ -47,6 +53,8 @@ import * as vectordb from './vectordb';
 import * as data from './data';
 import * as integrations from './integrations';
 import * as developer from './developer';
+import * as social from './social';
+import * as utilities from './utilities';
 
 export const allNodes = {
   // Core
@@ -132,6 +140,66 @@ export const allNodes = {
   FTP: developer.FTP,
   ExecuteCommand: developer.ExecuteCommand,
   SSHTunnel: developer.SSHTunnel,
+
+  // Social Media (💚 = Free tier, 💰 = Paid)
+  Twitter: social.Twitter,
+  LinkedIn: social.LinkedIn,
+  Facebook: social.Facebook,
+  Instagram: social.Instagram,
+  TikTok: social.TikTok,
+  YouTube: social.YouTube,
+  Reddit: social.Reddit,
+  Pinterest: social.Pinterest,
+  Mastodon: social.Mastodon,
+  Bluesky: social.Bluesky,
+  WhatsApp: social.WhatsApp,
+  Threads: social.Threads,
+
+  // Utility APIs - Weather (💚 = Free tier available)
+  OpenWeatherMap: utilities.OpenWeatherMap,
+  WeatherAPI: utilities.WeatherAPI,
+
+  // Utility APIs - News
+  NewsAPI: utilities.NewsAPI,
+  GNews: utilities.GNews,
+
+  // Utility APIs - Translation
+  GoogleTranslate: utilities.GoogleTranslate,
+  DeepL: utilities.DeepL,
+  LibreTranslate: utilities.LibreTranslate,
+
+  // Utility APIs - Maps & Geocoding
+  GoogleMaps: utilities.GoogleMaps,
+  Mapbox: utilities.Mapbox,
+  OpenStreetMap: utilities.OpenStreetMap,
+
+  // Utility APIs - General
+  IPGeolocation: utilities.IPGeolocation,
+  CurrencyExchange: utilities.CurrencyExchange,
+  QRCode: utilities.QRCode,
+  Screenshot: utilities.Screenshot,
+  TextAnalysis: utilities.TextAnalysis,
+
+  // URL Shorteners
+  Bitly: utilities.Bitly,
+  TinyURL: utilities.TinyURL,
+  Rebrandly: utilities.Rebrandly,
+
+  // File Conversion
+  CloudConvert: utilities.CloudConvert,
+  Convertio: utilities.Convertio,
+  PDFco: utilities.PDFco,
+
+  // Email Validation
+  ZeroBounce: utilities.ZeroBounce,
+  Hunter: utilities.Hunter,
+
+  // SMS & Phone
+  Twilio: utilities.Twilio,
+  MessageBird: utilities.MessageBird,
+
+  // Scheduling
+  Calendly: utilities.Calendly,
 };
 
 export const nodeList = Object.values(allNodes);
