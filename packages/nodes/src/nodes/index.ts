@@ -22,6 +22,18 @@ export * from './ecommerce';
 // CRM Nodes
 export * from './crm';
 
+// Vector Database Nodes
+export * from './vectordb';
+
+// Data Processing Nodes
+export * from './data';
+
+// Cloud Storage & Integrations
+export * from './integrations';
+
+// Developer Tools
+export * from './developer';
+
 // Re-export all node types for easy registration
 import * as core from './core';
 import * as triggers from './triggers';
@@ -31,6 +43,10 @@ import * as productivity from './productivity';
 import * as database from './database';
 import * as ecommerce from './ecommerce';
 import * as crm from './crm';
+import * as vectordb from './vectordb';
+import * as data from './data';
+import * as integrations from './integrations';
+import * as developer from './developer';
 
 export const allNodes = {
   // Core
@@ -48,6 +64,10 @@ export const allNodes = {
   JSON: core.JSON_Node,
   XML: core.XML,
   HTML: core.HTML,
+  ErrorTrigger: core.ErrorTrigger,
+  StopAndError: core.StopAndError,
+  NoOp: core.NoOp,
+  RespondToWebhook: core.RespondToWebhook,
 
   // Triggers
   Webhook: triggers.Webhook,
@@ -58,6 +78,15 @@ export const allNodes = {
   OpenAI: ai.OpenAI,
   Anthropic: ai.Anthropic,
   GoogleAI: ai.GoogleAI,
+  OpenAIEmbeddings: ai.OpenAIEmbeddings,
+  OpenAIVision: ai.OpenAIVision,
+  OpenAIFunctionCalling: ai.OpenAIFunctionCalling,
+  OpenAITextToSpeech: ai.OpenAITextToSpeech,
+  AIAgent: ai.AIAgent,
+
+  // Vector Databases
+  Pinecone: vectordb.Pinecone,
+  Qdrant: vectordb.Qdrant,
 
   // Communication
   Slack: communication.Slack,
@@ -83,6 +112,26 @@ export const allNodes = {
   // CRM
   HubSpot: crm.HubSpot,
   Salesforce: crm.Salesforce,
+
+  // Data Processing
+  Spreadsheet: data.Spreadsheet,
+  Aggregate: data.Aggregate,
+  Sort: data.Sort,
+  Limit: data.Limit,
+  RemoveDuplicates: data.RemoveDuplicates,
+  RenameKeys: data.RenameKeys,
+
+  // Cloud Storage & Integrations
+  Gmail: integrations.Gmail,
+  GoogleDrive: integrations.GoogleDrive,
+  S3: integrations.S3,
+
+  // Developer Tools
+  GraphQL: developer.GraphQL,
+  RSSFeed: developer.RSSFeed,
+  FTP: developer.FTP,
+  ExecuteCommand: developer.ExecuteCommand,
+  SSHTunnel: developer.SSHTunnel,
 };
 
 export const nodeList = Object.values(allNodes);
