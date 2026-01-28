@@ -19,6 +19,9 @@ export * from './database';
 // Ecommerce Nodes
 export * from './ecommerce';
 
+// CRM Nodes
+export * from './crm';
+
 // Re-export all node types for easy registration
 import * as core from './core';
 import * as triggers from './triggers';
@@ -27,6 +30,7 @@ import * as communication from './communication';
 import * as productivity from './productivity';
 import * as database from './database';
 import * as ecommerce from './ecommerce';
+import * as crm from './crm';
 
 export const allNodes = {
   // Core
@@ -39,6 +43,11 @@ export const allNodes = {
   SplitInBatches: core.SplitInBatches,
   Filter: core.Filter,
   Wait: core.Wait,
+  DateTime: core.DateTime,
+  Crypto: core.Crypto,
+  JSON: core.JSON_Node,
+  XML: core.XML,
+  HTML: core.HTML,
 
   // Triggers
   Webhook: triggers.Webhook,
@@ -63,10 +72,17 @@ export const allNodes = {
 
   // Database
   Postgres: database.Postgres,
+  MySQL: database.MySQL,
+  MongoDB: database.MongoDB,
+  Redis: database.Redis,
 
   // Ecommerce
   Stripe: ecommerce.Stripe,
   Shopify: ecommerce.Shopify,
+
+  // CRM
+  HubSpot: crm.HubSpot,
+  Salesforce: crm.Salesforce,
 };
 
 export const nodeList = Object.values(allNodes);
