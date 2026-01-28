@@ -1,0 +1,27 @@
+# Backend Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/backend/package.json ./packages/backend/
+
+RUN npm install
+
+# Copy source
+COPY packages/shared ./packages/shared
+COPY packages/backend ./packages/backend
+COPY tsconfig.base.json ./
+
+# Build shared package
+WORKDIR /app/packages/shared
+RUN npm run build
+
+# Back to app root
+WORKDIR /app
+
+EXPOSE 4000
+
+CMD ["npm", "run", "dev:backend"]

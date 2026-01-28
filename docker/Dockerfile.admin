@@ -1,0 +1,20 @@
+# Admin Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/admin/package.json ./packages/admin/
+
+RUN npm install
+
+# Copy source
+COPY packages/shared ./packages/shared
+COPY packages/admin ./packages/admin
+COPY tsconfig.base.json ./
+
+EXPOSE 3001
+
+CMD ["npm", "run", "dev:admin"]

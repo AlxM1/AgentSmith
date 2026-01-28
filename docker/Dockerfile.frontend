@@ -1,0 +1,20 @@
+# Frontend Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/frontend/package.json ./packages/frontend/
+
+RUN npm install
+
+# Copy source
+COPY packages/shared ./packages/shared
+COPY packages/frontend ./packages/frontend
+COPY tsconfig.base.json ./
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev:frontend"]

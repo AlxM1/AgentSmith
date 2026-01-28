@@ -1,0 +1,56 @@
+{
+  "name": "agentsmith",
+  "version": "1.0.0",
+  "description": "AgentSmith - Custom Workflow Orchestration Platform",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:worker\"",
+    "dev:backend": "npm run dev -w @agentsmith/backend",
+    "dev:frontend": "npm run dev -w @agentsmith/frontend",
+    "dev:worker": "npm run dev -w @agentsmith/worker",
+    "dev:admin": "npm run dev -w @agentsmith/admin",
+    "build": "npm run build -w @agentsmith/shared && npm run build -w @agentsmith/backend && npm run build -w @agentsmith/frontend && npm run build -w @agentsmith/worker && npm run build -w @agentsmith/admin",
+    "build:shared": "npm run build -w @agentsmith/shared",
+    "build:backend": "npm run build -w @agentsmith/backend",
+    "build:frontend": "npm run build -w @agentsmith/frontend",
+    "build:worker": "npm run build -w @agentsmith/worker",
+    "build:admin": "npm run build -w @agentsmith/admin",
+    "start": "npm run start -w @agentsmith/backend",
+    "start:worker": "npm run start -w @agentsmith/worker",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:migrate": "npm run db:migrate -w @agentsmith/backend",
+    "db:seed": "npm run db:seed -w @agentsmith/backend",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3",
+    "prettier": "^3.2.4",
+    "eslint": "^8.56.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AlxM1/AgentSmith.git"
+  },
+  "keywords": [
+    "workflow",
+    "automation",
+    "orchestration",
+    "agents",
+    "n8n",
+    "low-code"
+  ],
+  "author": "",
+  "license": "MIT"
+}
