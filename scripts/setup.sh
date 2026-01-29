@@ -147,9 +147,9 @@ build_images() {
     print_info "This may take a few minutes on first run..."
 
     if command -v docker compose &> /dev/null; then
-        docker compose -f docker-compose.production.yml build
+        docker compose build
     else
-        docker-compose -f docker-compose.production.yml build
+        docker-compose build
     fi
 
     print_success "Docker images built successfully"
@@ -160,9 +160,9 @@ start_services() {
     print_header "Starting Services"
 
     if command -v docker compose &> /dev/null; then
-        docker compose -f docker-compose.production.yml up -d
+        docker compose up -d
     else
-        docker-compose -f docker-compose.production.yml up -d
+        docker-compose up -d
     fi
 
     print_success "Services started"
@@ -201,12 +201,12 @@ print_access_info() {
     echo -e ""
     echo -e "Default admin credentials will be created on first run."
     echo -e "Check the logs for the initial admin password:"
-    echo -e "  ${BLUE}docker compose -f docker-compose.production.yml logs backend${NC}"
+    echo -e "  ${BLUE}docker compose logs backend${NC}"
     echo -e ""
     echo -e "Useful commands:"
-    echo -e "  ${BLUE}docker compose -f docker-compose.production.yml logs -f${NC}  # View logs"
-    echo -e "  ${BLUE}docker compose -f docker-compose.production.yml down${NC}     # Stop services"
-    echo -e "  ${BLUE}docker compose -f docker-compose.production.yml restart${NC}  # Restart services"
+    echo -e "  ${BLUE}docker compose logs -f${NC}  # View logs"
+    echo -e "  ${BLUE}docker compose down${NC}     # Stop services"
+    echo -e "  ${BLUE}docker compose restart${NC}  # Restart services"
     echo -e ""
     print_warning "For production, set up a reverse proxy with SSL (nginx/traefik)"
 }

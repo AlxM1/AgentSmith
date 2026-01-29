@@ -64,8 +64,9 @@ app.use(morgan('combined', {
   },
 }));
 
-// Health check (no auth required)
+// Health check (no auth required) - both paths for compatibility
 app.use('/health', healthRouter);
+app.use('/api/v1/health', healthRouter);
 
 // API routes
 app.use('/api/v1/auth', authRouter);
