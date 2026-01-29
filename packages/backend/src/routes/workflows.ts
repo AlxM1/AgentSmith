@@ -2,11 +2,13 @@
 
 import { Router } from 'express';
 import { db } from '../db/index.js';
-import { workflows } from '../db/schema.js';
+import { workflows, scheduledTriggers, webhooks } from '../db/schema.js';
 import { eq, desc, like, and, sql } from 'drizzle-orm';
 import { authenticate } from '../middleware/auth.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
 import { NotFoundError, BadRequestError } from '../middleware/errorHandler.js';
+import { queueService, findTriggerNodes } from '../services/QueueService.js';
+import { logger } from '../lib/logger.js';
 import {
   workflowCreateSchema,
   workflowUpdateSchema,
@@ -14,7 +16,7 @@ import {
   generateWorkflowId,
   defaultWorkflowSettings,
 } from '@agentsmith/shared';
-import type { IWorkflow, IWorkflowListItem } from '@agentsmith/shared';
+import type { IWorkflow, IWorkflowListItem, INode } from '@agentsmith/shared';
 import { z } from 'zod';
 
 const router = Router();
@@ -240,7 +242,47 @@ router.post('/:id/activate', async (req, res, next) => {
       throw new BadRequestError('Workflow is already active');
     }
 
-    // TODO: Register triggers (webhooks, schedules) with the worker
+    // Find and register triggers
+    const workflowData = workflow as unknown as IWorkflow;
+    const triggers = findTriggerNodes(workflowData);
+    const registeredTriggers: string[] = [];
+
+    // Register schedule triggers
+    for (const node of triggers.scheduleTriggers) {
+      const cronExpression = node.parameters?.cronExpression as string;
+      if (cronExpression) {
+        try {
+          const triggerId = await queueService.registerScheduledTrigger({
+            workflowId: id,
+            workflow: workflowData,
+            nodeId: node.id,
+            cronExpression,
+            timezone: node.parameters?.timezone as string,
+          });
+          registeredTriggers.push(triggerId);
+          logger.info(`Registered schedule trigger: ${triggerId}`, { workflowId: id });
+        } catch (error) {
+          logger.error(`Failed to register schedule trigger`, { error, nodeId: node.id });
+        }
+      }
+    }
+
+    // Register webhook triggers
+    for (const node of triggers.webhookTriggers) {
+      const path = node.parameters?.path as string || `/webhook/${id}/${node.id}`;
+      try {
+        const webhookId = await queueService.registerWebhook({
+          workflowId: id,
+          nodeId: node.id,
+          path,
+          method: node.parameters?.method as string,
+        });
+        registeredTriggers.push(webhookId);
+        logger.info(`Registered webhook: ${webhookId}`, { workflowId: id, path });
+      } catch (error) {
+        logger.error(`Failed to register webhook`, { error, nodeId: node.id });
+      }
+    }
 
     await db.update(workflows)
       .set({ status: 'active', updatedAt: new Date(), updatedBy: req.user!.id })
@@ -248,7 +290,10 @@ router.post('/:id/activate', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: { message: 'Workflow activated successfully' },
+      data: {
+        message: 'Workflow activated successfully',
+        triggersRegistered: registeredTriggers.length,
+      },
     });
   } catch (error) {
     next(error);
@@ -272,15 +317,47 @@ router.post('/:id/deactivate', async (req, res, next) => {
       throw new BadRequestError('Workflow is not active');
     }
 
-    // TODO: Unregister triggers with the worker
+    // Unregister all triggers for this workflow
+    let unregisteredCount = 0;
+
+    // Deactivate scheduled triggers
+    const schedules = await db.query.scheduledTriggers.findMany({
+      where: and(
+        eq(scheduledTriggers.workflowId, id),
+        eq(scheduledTriggers.isActive, true)
+      ),
+    });
+
+    for (const trigger of schedules) {
+      await queueService.unregisterScheduledTrigger(trigger.id);
+      unregisteredCount++;
+    }
+
+    // Deactivate webhooks
+    const workflowWebhooks = await db.query.webhooks.findMany({
+      where: and(
+        eq(webhooks.workflowId, id),
+        eq(webhooks.isActive, true)
+      ),
+    });
+
+    for (const wh of workflowWebhooks) {
+      await queueService.unregisterWebhook(wh.id);
+      unregisteredCount++;
+    }
 
     await db.update(workflows)
       .set({ status: 'inactive', updatedAt: new Date(), updatedBy: req.user!.id })
       .where(eq(workflows.id, id));
 
+    logger.info(`Deactivated workflow: ${id}`, { unregisteredTriggers: unregisteredCount });
+
     res.json({
       success: true,
-      data: { message: 'Workflow deactivated successfully' },
+      data: {
+        message: 'Workflow deactivated successfully',
+        triggersUnregistered: unregisteredCount,
+      },
     });
   } catch (error) {
     next(error);
@@ -301,13 +378,22 @@ router.post('/:id/execute', async (req, res, next) => {
       throw new NotFoundError('Workflow not found');
     }
 
-    // TODO: Queue workflow execution with the worker
-    // For now, return a placeholder execution ID
+    // Queue workflow execution with the worker
+    const { executionId, jobId } = await queueService.queueExecution({
+      workflowId: id,
+      workflow: workflow as unknown as IWorkflow,
+      mode: 'manual',
+      inputData,
+      userId: req.user!.id,
+    });
+
+    logger.info(`Manual execution queued: ${executionId}`, { workflowId: id });
 
     res.json({
       success: true,
       data: {
-        executionId: `ex_${Date.now()}`,
+        executionId,
+        jobId,
         message: 'Workflow execution queued',
       },
     });

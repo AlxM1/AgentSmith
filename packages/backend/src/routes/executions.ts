@@ -6,7 +6,9 @@ import { executions, workflows } from '../db/schema.js';
 import { eq, desc, and, gte, lte, inArray, sql } from 'drizzle-orm';
 import { authenticate } from '../middleware/auth.js';
 import { validateQuery } from '../middleware/validate.js';
-import { NotFoundError } from '../middleware/errorHandler.js';
+import { NotFoundError, BadRequestError } from '../middleware/errorHandler.js';
+import { queueService } from '../services/QueueService.js';
+import { logger } from '../lib/logger.js';
 import { paginationSchema } from '@agentsmith/shared';
 import type { IExecution, IExecutionListItem, IExecutionStats } from '@agentsmith/shared';
 import { z } from 'zod';
@@ -188,25 +190,26 @@ router.post('/:id/stop', async (req, res, next) => {
       throw new NotFoundError('Execution not found');
     }
 
-    if (execution.status !== 'running' && execution.status !== 'waiting') {
+    if (execution.status !== 'running' && execution.status !== 'pending' && execution.status !== 'waiting') {
       return res.json({
         success: true,
-        data: { message: 'Execution is not running' },
+        data: { message: 'Execution is not running', status: execution.status },
       });
     }
 
-    // TODO: Send stop signal to worker
+    // Cancel via queue service
+    const cancelled = await queueService.cancelExecution(id);
 
-    await db.update(executions)
-      .set({
-        status: 'cancelled',
-        finishedAt: new Date(),
-      })
-      .where(eq(executions.id, id));
+    if (cancelled) {
+      logger.info(`Execution cancelled: ${id}`);
+    }
 
     res.json({
       success: true,
-      data: { message: 'Execution stopped' },
+      data: {
+        message: cancelled ? 'Execution stopped' : 'Execution could not be stopped (may have already completed)',
+        cancelled,
+      },
     });
   } catch (error) {
     next(error);
@@ -227,28 +230,20 @@ router.post('/:id/retry', async (req, res, next) => {
     }
 
     if (execution.status !== 'failed') {
-      return res.json({
-        success: false,
-        error: { message: 'Only failed executions can be retried' },
-      });
+      throw new BadRequestError('Only failed executions can be retried');
     }
 
-    // Get workflow
-    const workflow = await db.query.workflows.findFirst({
-      where: eq(workflows.id, execution.workflowId),
-    });
+    // Queue retry via queue service
+    const { newExecutionId } = await queueService.retryExecution(id, req.user!.id);
 
-    if (!workflow) {
-      throw new NotFoundError('Workflow not found');
-    }
-
-    // TODO: Queue retry with worker
+    logger.info(`Execution retry queued: ${newExecutionId}`, { originalId: id });
 
     res.json({
       success: true,
       data: {
         message: 'Retry queued',
-        newExecutionId: `ex_${Date.now()}`,
+        originalExecutionId: id,
+        newExecutionId,
       },
     });
   } catch (error) {

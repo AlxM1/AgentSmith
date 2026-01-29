@@ -16,6 +16,8 @@ import {
 import { encrypt, decrypt } from '../lib/crypto.js';
 import { config } from '../config/index.js';
 import { z } from 'zod';
+import { testCredential } from '../services/CredentialTester.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -312,15 +314,64 @@ router.post('/:id/test', async (req, res, next) => {
       throw new NotFoundError('Credential not found');
     }
 
-    // TODO: Implement credential testing based on type
-    // This would involve making a test request using the credential
+    // Decrypt the credential data
+    const decryptedData = await decrypt(credential.data, config.encryption.key);
+    const credentialData = JSON.parse(decryptedData);
+
+    logger.info('Testing credential', { id, type: credential.type });
+
+    // Run the credential test
+    const testResult = await testCredential(credential.type, credentialData);
+
+    // Update the last tested timestamp
+    await db.update(credentials)
+      .set({ updatedAt: new Date() })
+      .where(eq(credentials.id, id));
 
     res.json({
-      success: true,
+      success: testResult.success,
       data: {
         tested: true,
-        valid: true,
-        message: 'Credential test successful',
+        valid: testResult.success,
+        message: testResult.message,
+        details: testResult.details,
+        error: testResult.error,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Test credential data without saving (for testing before creating)
+router.post('/test', async (req, res, next) => {
+  try {
+    const { type, data } = req.body;
+
+    if (!type || !data) {
+      return res.status(400).json({
+        success: false,
+        data: {
+          tested: false,
+          valid: false,
+          message: 'Missing type or data in request body',
+        },
+      });
+    }
+
+    logger.info('Testing unsaved credential', { type });
+
+    // Run the credential test
+    const testResult = await testCredential(type, data);
+
+    res.json({
+      success: testResult.success,
+      data: {
+        tested: true,
+        valid: testResult.success,
+        message: testResult.message,
+        details: testResult.details,
+        error: testResult.error,
       },
     });
   } catch (error) {
