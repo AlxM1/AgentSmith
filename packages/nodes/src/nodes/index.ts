@@ -49,6 +49,9 @@ export * from './search';
 // AI Agents
 export * from './agents';
 
+// GEO (Generative Engine Optimization)
+export * from './geo';
+
 // Re-export all node types for easy registration
 import * as core from './core';
 import * as triggers from './triggers';
@@ -67,6 +70,7 @@ import * as utilities from './utilities';
 import * as scraping from './scraping';
 import * as search from './search';
 import * as agents from './agents';
+import * as geo from './geo';
 
 export const allNodes = {
   // Core
@@ -251,6 +255,15 @@ export const allNodes = {
   CompetitorAnalysisAgent: agents.CompetitorAnalysisAgent,
   MonitoringAgent: agents.MonitoringAgent,
   WorkflowOrchestratorAgent: agents.WorkflowOrchestratorAgent,
+
+  // GEO (Generative Engine Optimization)
+  GEOContentAnalyzer: geo.GEOContentAnalyzer,
+  GEOContentOptimizer: geo.GEOContentOptimizer,
+  GEOSchemaGenerator: geo.GEOSchemaGenerator,
+  GEOVisibilityChecker: geo.GEOVisibilityChecker,
+  GEOCompetitorAnalyzer: geo.GEOCompetitorAnalyzer,
+  GEOScoreCalculator: geo.GEOScoreCalculator,
+  GEOFullAudit: geo.GEOFullAudit,
 };
 
 export const nodeList = Object.values(allNodes);
