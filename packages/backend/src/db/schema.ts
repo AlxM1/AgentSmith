@@ -13,16 +13,27 @@ export const executionModeEnum = pgEnum('execution_mode', ['manual', 'trigger', 
 export const users = pgTable('users', {
   id: varchar('id', { length: 50 }).primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
-  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  password: varchar('password', { length: 255 }), // Hashed password (nullable for SSO-only users)
+  passwordHash: varchar('password_hash', { length: 255 }), // Legacy field, kept for compatibility
   firstName: varchar('first_name', { length: 100 }),
   lastName: varchar('last_name', { length: 100 }),
+  avatar: varchar('avatar', { length: 500 }),
   role: userRoleEnum('role').notNull().default('user'),
   isActive: boolean('is_active').notNull().default(true),
   isPending: boolean('is_pending').notNull().default(false),
   settings: jsonb('settings'),
+  // SSO fields
+  ssoId: varchar('sso_id', { length: 255 }),
+  ssoProvider: varchar('sso_provider', { length: 50 }),
+  // 2FA fields
+  twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
+  twoFactorSecret: text('two_factor_secret'), // Encrypted TOTP secret
+  twoFactorBackupCodes: jsonb('two_factor_backup_codes'), // Hashed backup codes
+  // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  lastLoginAt: timestamp('last_login_at'),
+  lastLogin: timestamp('last_login'),
+  lastLoginAt: timestamp('last_login_at'), // Legacy field
 });
 
 // Workflows table
@@ -36,10 +47,28 @@ export const workflows = pgTable('workflows', {
   staticData: jsonb('static_data'),
   tags: jsonb('tags').notNull().default([]),
   status: workflowStatusEnum('status').notNull().default('draft'),
+  active: boolean('active').notNull().default(false), // Whether workflow is active (can be triggered)
+  versionId: integer('version_id').notNull().default(1),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   createdBy: varchar('created_by', { length: 50 }).notNull().references(() => users.id),
   updatedBy: varchar('updated_by', { length: 50 }).references(() => users.id),
+});
+
+// Workflow versions table (for version history)
+export const workflowVersions = pgTable('workflow_versions', {
+  id: varchar('id', { length: 50 }).primaryKey(),
+  workflowId: varchar('workflow_id', { length: 50 }).notNull().references(() => workflows.id, { onDelete: 'cascade' }),
+  versionNumber: integer('version_number').notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  nodes: jsonb('nodes').notNull(),
+  connections: jsonb('connections').notNull(),
+  settings: jsonb('settings').notNull(),
+  active: boolean('active').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdBy: varchar('created_by', { length: 50 }).notNull().references(() => users.id),
+  comment: text('comment'), // Version comment/changelog
 });
 
 // Executions table
@@ -182,6 +211,18 @@ export const workflowsRelations = relations(workflows, ({ one, many }) => ({
   executions: many(executions),
   webhooks: many(webhooks),
   scheduledTriggers: many(scheduledTriggers),
+  versions: many(workflowVersions),
+}));
+
+export const workflowVersionsRelations = relations(workflowVersions, ({ one }) => ({
+  workflow: one(workflows, {
+    fields: [workflowVersions.workflowId],
+    references: [workflows.id],
+  }),
+  createdByUser: one(users, {
+    fields: [workflowVersions.createdBy],
+    references: [users.id],
+  }),
 }));
 
 export const executionsRelations = relations(executions, ({ one }) => ({
