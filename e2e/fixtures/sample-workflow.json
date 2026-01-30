@@ -1,0 +1,83 @@
+{
+  "name": "Sample Test Workflow",
+  "description": "A sample workflow for E2E testing",
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "manualTrigger",
+      "name": "Manual Trigger",
+      "position": {
+        "x": 100,
+        "y": 200
+      },
+      "parameters": {}
+    },
+    {
+      "id": "set",
+      "type": "set",
+      "name": "Set Values",
+      "position": {
+        "x": 300,
+        "y": 200
+      },
+      "parameters": {
+        "mode": "manual",
+        "values": {
+          "string": [
+            {
+              "name": "message",
+              "value": "Hello from test workflow!"
+            }
+          ],
+          "number": [
+            {
+              "name": "count",
+              "value": 42
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "code",
+      "type": "code",
+      "name": "Transform",
+      "position": {
+        "x": 500,
+        "y": 200
+      },
+      "parameters": {
+        "jsCode": "return items.map(item => ({ json: { ...item.json, processed: true, timestamp: new Date().toISOString() } }));"
+      }
+    }
+  ],
+  "connections": {
+    "trigger": {
+      "main": [
+        [
+          {
+            "node": "set",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set": {
+      "main": [
+        [
+          {
+            "node": "code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60000,
+    "errorWorkflow": false
+  },
+  "tags": ["test", "sample"]
+}

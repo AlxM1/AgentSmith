@@ -1,0 +1,23 @@
+{
+  "name": "@agentsmith/e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end tests for AgentSmith",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "PWDEBUG=1 playwright test",
+    "test:api": "vitest run --config vitest.api.config.ts",
+    "test:report": "playwright show-report",
+    "codegen": "playwright codegen http://localhost:5678"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.41.0",
+    "@types/node": "^20.11.0",
+    "vitest": "^1.2.0",
+    "dotenv": "^16.4.1",
+    "typescript": "^5.3.3"
+  }
+}

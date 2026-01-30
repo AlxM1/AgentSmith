@@ -13,9 +13,13 @@ import { Users } from './pages/Users';
 import { Workflows } from './pages/Workflows';
 import { Executions } from './pages/Executions';
 import { AuditLog } from './pages/AuditLog';
+import { AuditLogViewer } from './pages/AuditLogViewer';
 import { Credentials } from './pages/Credentials';
 import { SystemHealth } from './pages/SystemHealth';
 import { SystemSettings } from './pages/SystemSettings';
+import { MonitoringDashboard } from './pages/MonitoringDashboard';
+import { RolesManagement } from './pages/RolesManagement';
+import { Environments } from './pages/Environments';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,10 +45,16 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
             {/* Security */}
             <Route path="audit-log" element={<AuditLog />} />
+            <Route path="audit-log/viewer" element={<AuditLogViewer />} />
             <Route path="credentials" element={<Credentials />} />
+            <Route path="roles" element={<RolesManagement />} />
+
+            {/* Environments */}
+            <Route path="environments" element={<Environments />} />
 
             {/* System */}
             <Route path="health" element={<SystemHealth />} />
+            <Route path="monitoring" element={<MonitoringDashboard />} />
             <Route path="settings" element={<SystemSettings />} />
           </Route>
         </Routes>
