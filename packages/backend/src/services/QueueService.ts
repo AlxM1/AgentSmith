@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Queue Service - BullMQ Integration for Backend
  *

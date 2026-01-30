@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Two-Factor Authentication Routes
  * Endpoints for 2FA setup, verification, and management

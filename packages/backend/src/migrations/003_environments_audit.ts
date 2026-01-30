@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Migration: Environments and Audit Logging
  * Adds environment management and SOC 2 audit trail

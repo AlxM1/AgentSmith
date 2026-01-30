@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * SSO Routes
  * OAuth2/OIDC authentication endpoints

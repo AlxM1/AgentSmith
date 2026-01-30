@@ -112,15 +112,28 @@ export const AuditLogViewer: React.FC = () => {
     try {
       const response = await adminApi.getAuditLogs({
         page,
-        perPage,
+        limit: perPage,
         action: actionFilter || undefined,
-        search: searchQuery || undefined
-      });
+      }) as any;
 
-      if (response.success && response.data) {
-        setLogs(response.data.logs || []);
-        setTotalPages(Math.ceil((response.data.total || 0) / perPage));
-      }
+      // Handle both wrapped and unwrapped response formats
+      const data = response?.data || response;
+      const logs = Array.isArray(data) ? data : (data?.logs || data?.data || []);
+      const total = response?.total || data?.total || logs.length;
+
+      setLogs(logs.map((log: any) => ({
+        id: log.id,
+        userId: log.userId,
+        userEmail: log.userEmail,
+        action: log.action,
+        resourceType: log.resourceType || log.resource,
+        resourceId: log.resourceId,
+        details: log.details || {},
+        ipAddress: log.ipAddress,
+        userAgent: log.userAgent,
+        createdAt: log.createdAt,
+      })));
+      setTotalPages(Math.ceil(total / perPage));
     } catch (error) {
       console.error('Failed to fetch audit logs:', error);
     } finally {
@@ -137,15 +150,15 @@ export const AuditLogViewer: React.FC = () => {
     try {
       const response = await adminApi.getAuditLogs({
         page: 1,
-        perPage: 10000,
+        limit: 10000,
         action: actionFilter || undefined,
-        search: searchQuery || undefined
-      });
+      }) as any;
 
-      if (response.success && response.data) {
-        const csv = convertToCSV(response.data.logs || []);
-        downloadCSV(csv, `audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
-      }
+      // Handle both wrapped and unwrapped response formats
+      const data = response?.data || response;
+      const exportLogs = Array.isArray(data) ? data : (data?.logs || data?.data || []);
+      const csv = convertToCSV(exportLogs);
+      downloadCSV(csv, `audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
     } catch (error) {
       console.error('Failed to export audit logs:', error);
     }

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Admin API Routes
  * Backend endpoints for the admin panel

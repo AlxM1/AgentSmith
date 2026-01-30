@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { authenticate, generateTokens, verifyRefreshToken } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { BadRequestError, UnauthorizedError, ConflictError } from '../middleware/errorHandler.js';
+import { logger } from '../lib/logger.js';
 import { loginSchema, userCreateSchema, passwordChangeSchema } from '@agentsmith/shared';
 import { generateUserId, defaultUserSettings } from '@agentsmith/shared';
 import type { IUserPublicData } from '@agentsmith/shared';
@@ -56,10 +57,9 @@ router.post('/login', validateBody(loginSchema), async (req, res, next) => {
 
     res.json({
       success: true,
-      data: {
-        user: userData,
-        tokens,
-      },
+      user: userData,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     });
   } catch (error) {
     next(error);
@@ -112,10 +112,9 @@ router.post('/register', validateBody(userCreateSchema), async (req, res, next) 
 
     res.status(201).json({
       success: true,
-      data: {
-        user: userData,
-        tokens,
-      },
+      user: userData,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     });
   } catch (error) {
     next(error);
@@ -156,7 +155,8 @@ router.post('/refresh', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: { tokens },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     });
   } catch (error) {
     next(error);
@@ -176,17 +176,15 @@ router.get('/me', authenticate, async (req, res, next) => {
 
     res.json({
       success: true,
-      data: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        isActive: user.isActive,
-        settings: user.settings,
-        createdAt: user.createdAt,
-        lastLoginAt: user.lastLoginAt,
-      },
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+      settings: user.settings,
+      createdAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt,
     });
   } catch (error) {
     next(error);
@@ -236,8 +234,43 @@ router.post('/logout', authenticate, (_req, res) => {
   // For added security, you could implement a token blacklist
   res.json({
     success: true,
-    data: { message: 'Logged out successfully' },
+    message: 'Logged out successfully',
   });
+});
+
+// Password reset request
+router.post('/password/reset-request', async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      throw new BadRequestError('Email is required');
+    }
+
+    // Find user - but always return success for security (don't leak whether email exists)
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (user) {
+      // In production, generate a reset token and send email
+      // For now, we just log that a reset was requested
+      logger.info('Password reset requested', { userId: user.id, email });
+
+      // TODO: Implement email sending with reset link
+      // const resetToken = generateResetToken();
+      // await storeResetToken(user.id, resetToken);
+      // await sendPasswordResetEmail(email, resetToken);
+    }
+
+    // Always return success to prevent email enumeration
+    res.status(202).json({
+      success: true,
+      message: 'If the email exists, a password reset link will be sent.',
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export { router as authRouter };

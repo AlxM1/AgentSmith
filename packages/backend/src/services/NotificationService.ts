@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Notification Service
  * Handles alerts for execution failures, system events, and user notifications

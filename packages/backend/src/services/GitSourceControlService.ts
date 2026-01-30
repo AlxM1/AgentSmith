@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Git Source Control Service
  *

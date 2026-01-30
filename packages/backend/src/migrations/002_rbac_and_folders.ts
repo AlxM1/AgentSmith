@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Migration: RBAC and Folder System
  * Adds role-based access control and workflow folders

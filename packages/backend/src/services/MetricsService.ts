@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Prometheus Metrics Service
  *

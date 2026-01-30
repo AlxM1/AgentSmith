@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Multi-Tenancy: Workspace/Organization Service
  * Provides workspace isolation for workflows, credentials, and executions

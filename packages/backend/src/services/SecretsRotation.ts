@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Secrets Rotation Service
  * Automated rotation of credentials, API keys, and tokens

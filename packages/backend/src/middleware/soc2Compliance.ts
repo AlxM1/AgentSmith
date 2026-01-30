@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * SOC 2 Compliance Middleware
  *

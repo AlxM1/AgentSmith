@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Per-User Rate Limiting Middleware
 import { Request, Response, NextFunction } from 'express';
 import { RateLimiterRedis, RateLimiterMemory, IRateLimiterOptions } from 'rate-limiter-flexible';

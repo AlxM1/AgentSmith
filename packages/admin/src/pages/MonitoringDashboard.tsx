@@ -64,45 +64,54 @@ const MonitoringDashboard: React.FC = () => {
   const fetchMetrics = useCallback(async () => {
     try {
       const [healthRes, statsRes, executionsRes] = await Promise.all([
-        adminApi.getSystemHealth(),
-        adminApi.getDashboardStats(),
-        adminApi.getExecutions({ perPage: 100 })
+        adminApi.getSystemHealth() as Promise<any>,
+        adminApi.getDashboardStats() as Promise<any>,
+        adminApi.getExecutions({ limit: 100 }) as Promise<any>
       ]);
 
-      if (healthRes.success && healthRes.data) {
+      // Handle health response (may be wrapped or direct)
+      const healthData = healthRes?.data || healthRes;
+      if (healthData) {
         setSystemMetrics({
-          cpu: healthRes.data.cpu || 0,
-          memory: healthRes.data.memory || { used: 0, total: 0, percentage: 0 },
-          uptime: healthRes.data.uptime || 0,
-          nodeVersion: healthRes.data.nodeVersion || 'N/A',
-          platform: healthRes.data.platform || 'N/A'
+          cpu: healthData.cpu || 0,
+          memory: healthData.memory || { used: 0, total: 0, percentage: 0 },
+          uptime: healthData.uptime || 0,
+          nodeVersion: healthData.nodeVersion || 'N/A',
+          platform: healthData.platform || 'N/A'
         });
 
-        if (healthRes.data.queue) {
-          setQueueStats(healthRes.data.queue);
+        if (healthData.queue) {
+          setQueueStats(healthData.queue);
         }
       }
 
-      if (statsRes.success && statsRes.data) {
+      // Handle stats response (may be wrapped or direct)
+      const statsData = statsRes?.data || statsRes;
+      if (statsData) {
         // Process execution metrics
-        const executions = statsRes.data.executions || { total: 0, success: 0, failed: 0 };
+        const executions = statsData.executions || statsData || { total: 0, success: 0, failed: 0 };
         setExecutionMetrics({
-          total: executions.total || 0,
-          success: executions.success || 0,
-          failed: executions.failed || 0,
+          total: executions.total || executions.totalExecutions || 0,
+          success: executions.success || executions.successfulExecutions || 0,
+          failed: executions.failed || executions.failedExecutions || 0,
           running: executions.running || 0,
           pending: executions.pending || 0,
-          avgDuration: executions.avgDuration || 0
+          avgDuration: executions.avgDuration || executions.averageExecutionTime || 0
         });
 
         // Process top workflows
-        if (statsRes.data.topWorkflows) {
-          setTopWorkflows(statsRes.data.topWorkflows);
+        if (statsData.topWorkflows) {
+          setTopWorkflows(statsData.topWorkflows);
         }
       }
 
-      // Generate time series from executions
-      if (executionsRes.success && executionsRes.data?.executions) {
+      // Generate time series from executions (handle both wrapped and unwrapped)
+      const executionsData = executionsRes?.data || executionsRes;
+      const executionsList = Array.isArray(executionsData)
+        ? executionsData
+        : (executionsData?.executions || executionsData?.data || []);
+
+      if (executionsList.length > 0) {
         const hourlyData: Record<string, { executions: number; success: number; failed: number }> = {};
         const now = new Date();
 
@@ -114,11 +123,11 @@ const MonitoringDashboard: React.FC = () => {
         }
 
         // Count executions per hour
-        executionsRes.data.executions.forEach((exec: { startedAt: string; status: string }) => {
+        executionsList.forEach((exec: { startedAt: string; status: string }) => {
           const hourKey = new Date(exec.startedAt).toISOString().slice(0, 13);
           if (hourlyData[hourKey]) {
             hourlyData[hourKey].executions++;
-            if (exec.status === 'success') hourlyData[hourKey].success++;
+            if (exec.status === 'success' || exec.status === 'completed') hourlyData[hourKey].success++;
             if (exec.status === 'failed') hourlyData[hourKey].failed++;
           }
         });

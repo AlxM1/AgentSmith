@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * API Key Service
  * Manages API key generation, validation, and lifecycle

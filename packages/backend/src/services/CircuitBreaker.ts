@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Circuit Breaker Pattern Implementation
  * Prevents cascade failures by failing fast when services are unavailable

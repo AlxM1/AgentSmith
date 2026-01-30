@@ -3,8 +3,8 @@
  * Centralized security exports
  */
 
-export * from './encryption';
-export * from './middleware';
+export * from './encryption.js';
+export * from './middleware.js';
 
 // Re-export commonly used functions
 export {
@@ -19,7 +19,7 @@ export {
   decryptCredentials,
   maskSensitiveData,
   sanitizeForLogging,
-} from './encryption';
+} from './encryption.js';
 
 export {
   securityMiddleware,
@@ -38,4 +38,4 @@ export {
   blacklistIP,
   unblacklistIP,
   whitelistIP,
-} from './middleware';
+} from './middleware.js';

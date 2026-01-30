@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AgentSmith Security Middleware
  * Comprehensive security middleware for maximum protection

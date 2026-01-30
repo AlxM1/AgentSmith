@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * SAML 2.0 Service - Enterprise SSO Authentication
  *

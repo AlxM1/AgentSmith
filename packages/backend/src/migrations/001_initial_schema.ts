@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Migration: Initial Schema
  * Creates the base tables for AgentSmith

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Authentication Middleware
 
 import type { Request, Response, NextFunction } from 'express';

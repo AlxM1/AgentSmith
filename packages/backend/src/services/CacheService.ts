@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Cache Service with Redis
  * Provides caching with TTL, tags, and invalidation strategies

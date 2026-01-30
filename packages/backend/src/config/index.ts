@@ -69,6 +69,25 @@ export const config = {
     path: process.env.STORAGE_PATH || './storage',
   },
 
+  // Email
+  email: {
+    enabled: process.env.EMAIL_ENABLED === 'true',
+    from: process.env.EMAIL_FROM || 'noreply@example.com',
+    fromName: process.env.EMAIL_FROM_NAME || 'AgentSmith',
+    smtp: {
+      host: process.env.SMTP_HOST || 'localhost',
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || '',
+      },
+    },
+    templates: {
+      path: process.env.EMAIL_TEMPLATES_PATH || './templates/email',
+    },
+  },
+
   // JWT Secret (alias for backward compatibility)
   jwtSecret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
 
@@ -99,6 +118,10 @@ export const config = {
       tokenUrl: process.env.SSO_OIDC_TOKEN_URL || '',
       userInfoUrl: process.env.SSO_OIDC_USERINFO_URL || '',
       callbackUrl: process.env.SSO_OIDC_CALLBACK_URL || '',
+      name: process.env.SSO_OIDC_NAME || 'SSO',
+      jwksUri: process.env.SSO_OIDC_JWKS_URI || '',
+      scopes: (process.env.SSO_OIDC_SCOPES || 'openid,email,profile').split(','),
+      attributeMapping: undefined as Record<string, string> | undefined,
     },
     ldap: {
       enabled: process.env.SSO_LDAP_ENABLED === 'true',
@@ -107,6 +130,29 @@ export const config = {
       bindPassword: process.env.SSO_LDAP_BIND_PASSWORD || '',
       searchBase: process.env.SSO_LDAP_SEARCH_BASE || '',
       searchFilter: process.env.SSO_LDAP_SEARCH_FILTER || '(uid={{username}})',
+    },
+    // OAuth Providers
+    google: {
+      enabled: process.env.SSO_GOOGLE_ENABLED === 'true',
+      clientId: process.env.SSO_GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.SSO_GOOGLE_CLIENT_SECRET || '',
+    },
+    github: {
+      enabled: process.env.SSO_GITHUB_ENABLED === 'true',
+      clientId: process.env.SSO_GITHUB_CLIENT_ID || '',
+      clientSecret: process.env.SSO_GITHUB_CLIENT_SECRET || '',
+    },
+    microsoft: {
+      enabled: process.env.SSO_MICROSOFT_ENABLED === 'true',
+      clientId: process.env.SSO_MICROSOFT_CLIENT_ID || '',
+      clientSecret: process.env.SSO_MICROSOFT_CLIENT_SECRET || '',
+      tenantId: process.env.SSO_MICROSOFT_TENANT_ID || '',
+    },
+    okta: {
+      enabled: process.env.SSO_OKTA_ENABLED === 'true',
+      domain: process.env.SSO_OKTA_DOMAIN || '',
+      clientId: process.env.SSO_OKTA_CLIENT_ID || '',
+      clientSecret: process.env.SSO_OKTA_CLIENT_SECRET || '',
     },
   },
 };
