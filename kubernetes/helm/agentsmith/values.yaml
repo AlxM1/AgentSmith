@@ -1,0 +1,421 @@
+# AgentSmith Helm Chart Values
+# Enterprise Workflow Orchestration Platform
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Image configuration
+image:
+  registry: docker.io
+  repository: agentsmith/agentsmith
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# Replica configuration
+replicaCount:
+  main: 2
+  worker: 3
+  webhook: 2
+
+# High Availability settings
+highAvailability:
+  enabled: true
+  leaderElection: true
+
+# Main application configuration
+main:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  nodeSelector: {}
+  tolerations: []
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - main
+            topologyKey: kubernetes.io/hostname
+
+# Worker configuration
+worker:
+  enabled: true
+  replicas: 3
+  concurrency: 10
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+    # Custom metrics for queue depth
+    customMetrics:
+      - type: External
+        external:
+          metric:
+            name: agentsmith_queue_depth
+          target:
+            type: AverageValue
+            averageValue: "100"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Webhook processor configuration
+webhook:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 3000
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/websocket-services: "agentsmith"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: agentsmith.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: agentsmith-tls
+      hosts:
+        - agentsmith.example.com
+
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: ""  # Set via --set or secrets
+    username: agentsmith
+    password: ""  # Set via --set or secrets
+    database: agentsmith
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 20Gi
+
+# Redis configuration
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: true
+    password: ""  # Set via --set or secrets
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# External database (if not using bundled PostgreSQL)
+externalDatabase:
+  enabled: false
+  host: ""
+  port: 5432
+  username: agentsmith
+  password: ""
+  database: agentsmith
+  ssl: true
+  sslMode: require
+
+# External Redis (if not using bundled Redis)
+externalRedis:
+  enabled: false
+  host: ""
+  port: 6379
+  password: ""
+  ssl: true
+
+# Application configuration
+config:
+  # Node environment
+  nodeEnv: production
+
+  # Encryption key (generate with: openssl rand -hex 32)
+  encryptionKey: ""
+
+  # JWT settings
+  jwt:
+    secret: ""  # Generate a strong secret
+    expiresIn: "24h"
+
+  # CORS settings
+  cors:
+    origins:
+      - https://agentsmith.example.com
+
+  # Rate limiting
+  rateLimit:
+    windowMs: 60000
+    max: 100
+
+  # Queue settings
+  queue:
+    defaultTimeout: 300000
+    maxRetries: 3
+
+  # Execution settings
+  executions:
+    pruneDataMaxAge: 336  # hours (14 days)
+    pruneDataMaxCount: 10000
+
+  # Log level
+  logLevel: info
+
+# SSO Configuration
+sso:
+  enabled: false
+  # SAML
+  saml:
+    enabled: false
+    entryPoint: ""
+    issuer: ""
+    cert: ""
+    attributeMapping:
+      email: "email"
+      firstName: "firstName"
+      lastName: "lastName"
+  # OIDC
+  oidc:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+    issuer: ""
+    authorizationUrl: ""
+    tokenUrl: ""
+    userInfoUrl: ""
+  # LDAP
+  ldap:
+    enabled: false
+    url: ""
+    bindDn: ""
+    bindPassword: ""
+    searchBase: ""
+    searchFilter: "(uid={{username}})"
+
+# External secrets
+externalSecrets:
+  enabled: false
+  # HashiCorp Vault
+  vault:
+    enabled: false
+    address: ""
+    token: ""
+    path: "secret/data/agentsmith"
+  # AWS Secrets Manager
+  aws:
+    enabled: false
+    region: ""
+    secretName: ""
+  # Azure Key Vault
+  azure:
+    enabled: false
+    vaultUrl: ""
+    tenantId: ""
+    clientId: ""
+    clientSecret: ""
+
+# Log streaming
+logStreaming:
+  enabled: false
+  destinations:
+    # Datadog
+    datadog:
+      enabled: false
+      apiKey: ""
+      site: "datadoghq.com"
+    # Splunk
+    splunk:
+      enabled: false
+      hecUrl: ""
+      hecToken: ""
+    # Elasticsearch
+    elasticsearch:
+      enabled: false
+      url: ""
+      index: "agentsmith-logs"
+    # Loki
+    loki:
+      enabled: false
+      url: ""
+
+# Metrics
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+    scrapeTimeout: 10s
+
+# Persistence
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  annotations: {}
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Pod security context
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container security context
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Network policies
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC
+rbac:
+  create: true
+
+# Probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+  successThreshold: 1
+
+# Extra environment variables
+extraEnv: []
+
+# Extra volumes
+extraVolumes: []
+
+# Extra volume mounts
+extraVolumeMounts: []
+
+# Init containers
+initContainers: []
+
+# Sidecar containers
+sidecars: []
+
+# Annotations for all pods
+podAnnotations: {}
+
+# Labels for all pods
+podLabels: {}

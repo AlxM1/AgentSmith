@@ -1,0 +1,80 @@
+{{- if .Values.main.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-main
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+    app.kubernetes.io/component: main
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "agentsmith.fullname" . }}-main
+  minReplicas: {{ .Values.main.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.main.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.main.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.main.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}
+---
+{{- if .Values.worker.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-worker
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "agentsmith.fullname" . }}-worker
+  minReplicas: {{ .Values.worker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.worker.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.worker.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if .Values.worker.autoscaling.customMetrics }}
+    {{- toYaml .Values.worker.autoscaling.customMetrics | nindent 4 }}
+    {{- end }}
+{{- end }}
+---
+{{- if .Values.webhook.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-webhook
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "agentsmith.fullname" . }}-webhook
+  minReplicas: {{ .Values.webhook.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.webhook.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.webhook.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

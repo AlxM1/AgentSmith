@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-config
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.config.nodeEnv | quote }}
+  PORT: "3000"
+  HOST: "0.0.0.0"
+
+  # Database
+  DB_HOST: {{ include "agentsmith.databaseHost" . | quote }}
+  DB_PORT: {{ include "agentsmith.databasePort" . | quote }}
+  DB_NAME: {{ .Values.postgresql.auth.database | default "agentsmith" | quote }}
+  DB_USER: {{ .Values.postgresql.auth.username | default "agentsmith" | quote }}
+  DB_SSL: {{ .Values.externalDatabase.ssl | default false | quote }}
+
+  # Redis
+  REDIS_HOST: {{ include "agentsmith.redisHost" . | quote }}
+  REDIS_PORT: {{ include "agentsmith.redisPort" . | quote }}
+  REDIS_DB: "0"
+
+  # Queue
+  QUEUE_MODE: "redis"
+  QUEUE_DEFAULT_TIMEOUT: {{ .Values.config.queue.defaultTimeout | default 300000 | quote }}
+  QUEUE_MAX_RETRIES: {{ .Values.config.queue.maxRetries | default 3 | quote }}
+
+  # Executions
+  EXECUTIONS_PRUNE_DATA_MAX_AGE: {{ .Values.config.executions.pruneDataMaxAge | default 336 | quote }}
+  EXECUTIONS_PRUNE_DATA_MAX_COUNT: {{ .Values.config.executions.pruneDataMaxCount | default 10000 | quote }}
+
+  # Rate limiting
+  RATE_LIMIT_WINDOW_MS: {{ .Values.config.rateLimit.windowMs | default 60000 | quote }}
+  RATE_LIMIT_MAX: {{ .Values.config.rateLimit.max | default 100 | quote }}
+
+  # CORS
+  {{- if .Values.config.cors.origins }}
+  CORS_ORIGINS: {{ join "," .Values.config.cors.origins | quote }}
+  {{- end }}
+
+  # Logging
+  LOG_LEVEL: {{ .Values.config.logLevel | default "info" | quote }}
+
+  # HA Mode
+  HA_ENABLED: {{ .Values.highAvailability.enabled | quote }}
+  HA_LEADER_ELECTION: {{ .Values.highAvailability.leaderElection | quote }}
+
+  # Metrics
+  METRICS_ENABLED: {{ .Values.metrics.enabled | quote }}
+  METRICS_PORT: "9090"
+
+  # SSO
+  {{- if .Values.sso.enabled }}
+  SSO_ENABLED: "true"
+  {{- if .Values.sso.saml.enabled }}
+  SAML_ENABLED: "true"
+  SAML_ENTRY_POINT: {{ .Values.sso.saml.entryPoint | quote }}
+  SAML_ISSUER: {{ .Values.sso.saml.issuer | quote }}
+  {{- end }}
+  {{- if .Values.sso.oidc.enabled }}
+  OIDC_ENABLED: "true"
+  OIDC_ISSUER: {{ .Values.sso.oidc.issuer | quote }}
+  OIDC_AUTHORIZATION_URL: {{ .Values.sso.oidc.authorizationUrl | quote }}
+  OIDC_TOKEN_URL: {{ .Values.sso.oidc.tokenUrl | quote }}
+  OIDC_USERINFO_URL: {{ .Values.sso.oidc.userInfoUrl | quote }}
+  {{- end }}
+  {{- if .Values.sso.ldap.enabled }}
+  LDAP_ENABLED: "true"
+  LDAP_URL: {{ .Values.sso.ldap.url | quote }}
+  LDAP_SEARCH_BASE: {{ .Values.sso.ldap.searchBase | quote }}
+  LDAP_SEARCH_FILTER: {{ .Values.sso.ldap.searchFilter | quote }}
+  {{- end }}
+  {{- end }}
+
+  # External Secrets
+  {{- if .Values.externalSecrets.enabled }}
+  EXTERNAL_SECRETS_ENABLED: "true"
+  {{- if .Values.externalSecrets.vault.enabled }}
+  VAULT_ENABLED: "true"
+  VAULT_ADDRESS: {{ .Values.externalSecrets.vault.address | quote }}
+  VAULT_PATH: {{ .Values.externalSecrets.vault.path | quote }}
+  {{- end }}
+  {{- if .Values.externalSecrets.aws.enabled }}
+  AWS_SECRETS_ENABLED: "true"
+  AWS_REGION: {{ .Values.externalSecrets.aws.region | quote }}
+  AWS_SECRET_NAME: {{ .Values.externalSecrets.aws.secretName | quote }}
+  {{- end }}
+  {{- end }}
+
+  # Log Streaming
+  {{- if .Values.logStreaming.enabled }}
+  LOG_STREAMING_ENABLED: "true"
+  {{- if .Values.logStreaming.destinations.datadog.enabled }}
+  DATADOG_ENABLED: "true"
+  DATADOG_SITE: {{ .Values.logStreaming.destinations.datadog.site | quote }}
+  {{- end }}
+  {{- if .Values.logStreaming.destinations.splunk.enabled }}
+  SPLUNK_ENABLED: "true"
+  SPLUNK_HEC_URL: {{ .Values.logStreaming.destinations.splunk.hecUrl | quote }}
+  {{- end }}
+  {{- if .Values.logStreaming.destinations.elasticsearch.enabled }}
+  ELASTICSEARCH_ENABLED: "true"
+  ELASTICSEARCH_URL: {{ .Values.logStreaming.destinations.elasticsearch.url | quote }}
+  ELASTICSEARCH_INDEX: {{ .Values.logStreaming.destinations.elasticsearch.index | quote }}
+  {{- end }}
+  {{- end }}
