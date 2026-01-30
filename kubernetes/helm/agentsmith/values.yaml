@@ -467,3 +467,218 @@ backup:
     limits:
       cpu: 500m
       memory: 1Gi
+
+# ============================================
+# Secrets Rotation Configuration
+# ============================================
+secretsRotation:
+  enabled: true
+  # Cron schedule (default: every 6 hours)
+  schedule: "0 */6 * * *"
+  # Log level
+  logLevel: "info"
+  # Dry run mode (for testing)
+  dryRun: false
+
+  # Image configuration
+  image:
+    repository: agentsmith/secrets-rotation
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  # Service account
+  serviceAccount:
+    annotations: {}
+    # For AWS IRSA:
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/SecretsRotationRole
+
+  # Node selection
+  nodeSelector: {}
+  tolerations: []
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Rotation policies by secret type
+  policies:
+    database:
+      rotationDays: 90
+      gracePeriodHours: 24
+      notifyDaysBefore: [30, 7, 1]
+      requireApproval: true
+    api_key:
+      rotationDays: 30
+      gracePeriodHours: 4
+      notifyDaysBefore: [7, 1]
+      requireApproval: false
+    jwt_secret:
+      rotationDays: 7
+      gracePeriodHours: 1
+      notifyDaysBefore: [3, 1]
+      requireApproval: false
+    encryption_key:
+      rotationDays: 365
+      gracePeriodHours: 48
+      notifyDaysBefore: [60, 30, 7]
+      requireApproval: true
+    webhook_secret:
+      rotationDays: 30
+      gracePeriodHours: 4
+      notifyDaysBefore: [7, 1]
+      requireApproval: false
+
+  # Secrets to manage
+  secrets:
+    - id: jwt-secret
+      name: JWT Secret
+      type: jwt_secret
+      rotationDays: 7
+      enabled: true
+      kubernetesSecret:
+        name: agentsmith-secrets
+        key: jwt-secret
+    - id: api-encryption-key
+      name: API Encryption Key
+      type: encryption_key
+      rotationDays: 365
+      enabled: true
+      kubernetesSecret:
+        name: agentsmith-secrets
+        key: encryption-key
+    - id: webhook-signing-key
+      name: Webhook Signing Key
+      type: webhook_secret
+      rotationDays: 30
+      enabled: true
+      kubernetesSecret:
+        name: agentsmith-secrets
+        key: webhook-secret
+
+  # Notifications
+  notifications:
+    enabled: true
+    slack:
+      enabled: false
+      webhookUrl: ""
+      channel: "#security-alerts"
+    email:
+      enabled: false
+      recipients: "security@example.com"
+
+  # HashiCorp Vault integration
+  vault:
+    enabled: false
+    address: ""
+    secretName: vault-token
+    path: "secret/data/agentsmith"
+
+  # AWS Secrets Manager integration
+  aws:
+    enabled: false
+    region: "us-east-1"
+    secretName: aws-credentials
+
+# ============================================
+# Blue-Green Deployment Configuration
+# ============================================
+blueGreen:
+  # Enable blue-green deployments (requires Argo Rollouts)
+  enabled: false
+
+  # Preview replicas (for testing new version)
+  previewReplicas: 1
+
+  # Delay before scaling down old version (seconds)
+  scaleDownDelaySeconds: 300
+
+  # Auto-promotion configuration
+  autoPromotion:
+    # Automatically promote after analysis passes
+    enabled: true
+    # Seconds to wait before auto-promotion
+    seconds: 60
+
+  # Analysis configuration
+  analysis:
+    # Enable pre/post promotion analysis
+    enabled: true
+    # Prometheus address for metrics
+    prometheusAddress: "http://prometheus-server.monitoring:80"
+
+  # Traffic management
+  trafficRouting:
+    # Use Istio for traffic management
+    istio:
+      enabled: false
+      virtualService:
+        name: agentsmith-vsvc
+        routes:
+          - primary
+    # Use Nginx for traffic management
+    nginx:
+      enabled: false
+      stableIngress: agentsmith-stable
+      annotationPrefix: nginx.ingress.kubernetes.io
+
+# ============================================
+# Canary Deployment Configuration
+# ============================================
+canary:
+  # Enable canary deployments (alternative to blue-green)
+  enabled: false
+
+  # Canary steps
+  steps:
+    - setWeight: 5
+    - pause: { duration: 1m }
+    - setWeight: 10
+    - pause: { duration: 2m }
+    - setWeight: 25
+    - pause: { duration: 5m }
+    - setWeight: 50
+    - pause: { duration: 10m }
+    - setWeight: 75
+    - pause: { duration: 10m }
+    - setWeight: 100
+
+  # Maximum surge during deployment
+  maxSurge: "25%"
+  # Maximum unavailable during deployment
+  maxUnavailable: 0
+
+  # Analysis during canary
+  analysis:
+    enabled: true
+    startingStep: 2
+    templates:
+      - templateName: agentsmith-canary-analysis
+
+# ============================================
+# CDN Configuration
+# ============================================
+cdn:
+  enabled: false
+  provider: "cloudfront"  # cloudfront, cloudflare, or custom
+
+  # CloudFront configuration
+  cloudfront:
+    distributionId: ""
+    originDomain: ""
+
+  # Cloudflare configuration
+  cloudflare:
+    zoneId: ""
+    apiToken: ""
+
+  # Cache control headers
+  cacheControl:
+    static: "public, max-age=31536000, immutable"
+    images: "public, max-age=2592000"
+    html: "public, max-age=300"
+    api: "no-cache, no-store, must-revalidate"

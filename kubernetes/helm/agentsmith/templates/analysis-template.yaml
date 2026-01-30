@@ -1,0 +1,177 @@
+{{- if and .Values.blueGreen.enabled .Values.blueGreen.analysis.enabled }}
+# Pre-promotion Analysis Template
+# Validates the preview version before promoting to production
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-pre-promotion
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: service-name
+  metrics:
+    # Success rate check
+    - name: success-rate
+      interval: 30s
+      count: 5
+      successCondition: result[0] >= 0.95
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: {{ .Values.blueGreen.analysis.prometheusAddress }}
+          query: |
+            sum(rate(http_request_duration_seconds_count{job="agentsmith",kubernetes_service_name="{{ "{{" }}args.service-name{{ "}}" }}",status_code!~"5.."}[1m]))
+            /
+            sum(rate(http_request_duration_seconds_count{job="agentsmith",kubernetes_service_name="{{ "{{" }}args.service-name{{ "}}" }}"}[1m]))
+
+    # Latency check (p95 < 500ms)
+    - name: latency-p95
+      interval: 30s
+      count: 5
+      successCondition: result[0] < 0.5
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: {{ .Values.blueGreen.analysis.prometheusAddress }}
+          query: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{job="agentsmith",kubernetes_service_name="{{ "{{" }}args.service-name{{ "}}" }}"}[1m]))
+              by (le)
+            )
+
+    # Error rate check (< 1%)
+    - name: error-rate
+      interval: 30s
+      count: 5
+      successCondition: result[0] < 0.01
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: {{ .Values.blueGreen.analysis.prometheusAddress }}
+          query: |
+            sum(rate(http_request_duration_seconds_count{job="agentsmith",kubernetes_service_name="{{ "{{" }}args.service-name{{ "}}" }}",status_code=~"5.."}[1m]))
+            /
+            sum(rate(http_request_duration_seconds_count{job="agentsmith",kubernetes_service_name="{{ "{{" }}args.service-name{{ "}}" }}"}[1m]))
+
+    # Health check
+    - name: health-check
+      interval: 10s
+      count: 10
+      successCondition: result == "Healthy"
+      failureLimit: 3
+      provider:
+        web:
+          url: http://{{ "{{" }}args.service-name{{ "}}" }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/health
+          jsonPath: "{$.status}"
+
+    # Pod ready check
+    - name: pods-ready
+      interval: 10s
+      count: 6
+      successCondition: result[0] >= {{ .Values.main.replicas }}
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: {{ .Values.blueGreen.analysis.prometheusAddress }}
+          query: |
+            sum(kube_pod_status_ready{namespace="{{ .Release.Namespace }}",pod=~"{{ include "agentsmith.fullname" . }}.*",condition="true"})
+---
+# Post-promotion Analysis Template
+# Monitors the production deployment after promotion
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-post-promotion
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: service-name
+  metrics:
+    # Extended success rate monitoring
+    - name: success-rate-extended
+      interval: 60s
+      count: 10
+      successCondition: result[0] >= 0.99
+      failureLimit: 3
+      provider:
+        prometheus:
+          address: {{ .Values.blueGreen.analysis.prometheusAddress }}
+          query: |
+            sum(rate(http_request_duration_seconds_count{job="agentsmith",kubernetes_service_name="{{ "{{" }}args.service-name{{ "}}" }}",status_code!~"5.."}[5m]))
+            /
+            sum(rate(http_request_duration_seconds_count{job="agentsmith",kubernetes_service_name="{{ "{{" }}args.service-name{{ "}}" }}"}[5m]))
+
+    # CPU usage check (< 80%)
+    - name: cpu-usage
+      interval: 60s
+      count: 5
+      successCondition: result[0] < 80
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: {{ .Values.blueGreen.analysis.prometheusAddress }}
+          query: |
+            avg(rate(process_cpu_seconds_total{job="agentsmith",kubernetes_service_name="{{ "{{" }}args.service-name{{ "}}" }}"}[5m])) * 100
+
+    # Memory usage check (< 90%)
+    - name: memory-usage
+      interval: 60s
+      count: 5
+      successCondition: result[0] < 3.6
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: {{ .Values.blueGreen.analysis.prometheusAddress }}
+          query: |
+            avg(process_resident_memory_bytes{job="agentsmith",kubernetes_service_name="{{ "{{" }}args.service-name{{ "}}" }}"}) / 1024 / 1024 / 1024
+---
+# Canary Analysis Template (for gradual traffic shifting)
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-canary-analysis
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: canary-hash
+    - name: stable-hash
+  metrics:
+    # Compare error rates between canary and stable
+    - name: error-rate-comparison
+      interval: 60s
+      count: 5
+      successCondition: result[0] <= 1.2
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: {{ .Values.blueGreen.analysis.prometheusAddress }}
+          query: |
+            (
+              sum(rate(http_request_duration_seconds_count{job="agentsmith",rollouts_pod_template_hash="{{ "{{" }}args.canary-hash{{ "}}" }}",status_code=~"5.."}[5m]))
+              /
+              sum(rate(http_request_duration_seconds_count{job="agentsmith",rollouts_pod_template_hash="{{ "{{" }}args.canary-hash{{ "}}" }}"}[5m]))
+            )
+            /
+            (
+              sum(rate(http_request_duration_seconds_count{job="agentsmith",rollouts_pod_template_hash="{{ "{{" }}args.stable-hash{{ "}}" }}",status_code=~"5.."}[5m]))
+              /
+              sum(rate(http_request_duration_seconds_count{job="agentsmith",rollouts_pod_template_hash="{{ "{{" }}args.stable-hash{{ "}}" }}"}[5m]))
+            )
+
+    # Compare latency between canary and stable
+    - name: latency-comparison
+      interval: 60s
+      count: 5
+      successCondition: result[0] <= 1.1
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: {{ .Values.blueGreen.analysis.prometheusAddress }}
+          query: |
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="agentsmith",rollouts_pod_template_hash="{{ "{{" }}args.canary-hash{{ "}}" }}"}[5m])) by (le))
+            /
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="agentsmith",rollouts_pod_template_hash="{{ "{{" }}args.stable-hash{{ "}}" }}"}[5m])) by (le))
+{{- end }}
