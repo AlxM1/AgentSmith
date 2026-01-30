@@ -196,6 +196,22 @@ CREATE INDEX IF NOT EXISTS idx_credential_shares_user ON credential_shares(user_
 CREATE INDEX IF NOT EXISTS idx_credential_shares_credential ON credential_shares(credential_id);
 
 -- ============================================================================
+-- WORKFLOW SHARES TABLE (for sharing workflows between users)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS workflow_shares (
+    id VARCHAR(50) PRIMARY KEY,
+    workflow_id VARCHAR(50) NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    permission VARCHAR(20) NOT NULL DEFAULT 'view',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_by VARCHAR(50) NOT NULL REFERENCES users(id),
+    UNIQUE(workflow_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_shares_user ON workflow_shares(user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_shares_workflow ON workflow_shares(workflow_id);
+
+-- ============================================================================
 -- WEBHOOKS TABLE
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS webhooks (
