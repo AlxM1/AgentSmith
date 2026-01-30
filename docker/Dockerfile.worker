@@ -1,16 +1,31 @@
-# Worker Dockerfile
-FROM node:20-alpine
+# Worker Dockerfile - Production Build
+# Multi-stage build for workflow execution workers
 
+# ============ Stage 1: Dependencies ============
+FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Install dependencies
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
+# Copy package files
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/worker/package.json ./packages/worker/
 
-RUN npm install
+# Install all dependencies
+RUN npm ci
 
-# Copy source
+# ============ Stage 2: Builder ============
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/packages/worker/node_modules ./packages/worker/node_modules
+
+# Copy source code
 COPY packages/shared ./packages/shared
 COPY packages/worker ./packages/worker
 COPY tsconfig.base.json ./
@@ -19,7 +34,51 @@ COPY tsconfig.base.json ./
 WORKDIR /app/packages/shared
 RUN npm run build
 
-# Back to app root
+# Build worker
+WORKDIR /app/packages/worker
+RUN npm run build
+
+# ============ Stage 3: Production ============
+FROM node:20-alpine AS production
 WORKDIR /app
 
-CMD ["npm", "run", "dev:worker"]
+# Security: Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S agentsmith -u 1001 -G nodejs
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Install production dependencies only
+COPY package.json package-lock.json* ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/worker/package.json ./packages/worker/
+
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Copy built artifacts
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+COPY --from=builder /app/packages/worker/dist ./packages/worker/dist
+COPY --from=builder /app/packages/worker/package.json ./packages/worker/
+
+# Set ownership
+RUN chown -R agentsmith:nodejs /app
+
+# Switch to non-root user
+USER agentsmith
+
+# Environment
+ENV NODE_ENV=production
+
+# Worker doesn't expose HTTP ports by default
+# but may have a health check endpoint
+
+# Health check via process presence
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD pgrep -f "node" > /dev/null || exit 1
+
+# Use dumb-init for proper signal handling (graceful shutdown)
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "packages/worker/dist/index.js"]

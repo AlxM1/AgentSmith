@@ -1,0 +1,248 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-backup
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.backup.historyLimit.successful | default 3 }}
+  failedJobsHistoryLimit: {{ .Values.backup.historyLimit.failed | default 3 }}
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.backup.timeout | default 3600 }}
+      backoffLimit: {{ .Values.backup.retries | default 2 }}
+      template:
+        metadata:
+          labels:
+            {{- include "agentsmith.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+          annotations:
+            backup-timestamp: "{{ now | date "2006-01-02T15:04:05Z07:00" }}"
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "agentsmith.serviceAccountName" . }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+          containers:
+            - name: backup
+              image: postgres:16-alpine
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: PGHOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "agentsmith.fullname" . }}-db-secret
+                      key: host
+                - name: PGPORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "agentsmith.fullname" . }}-db-secret
+                      key: port
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "agentsmith.fullname" . }}-db-secret
+                      key: database
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "agentsmith.fullname" . }}-db-secret
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "agentsmith.fullname" . }}-db-secret
+                      key: password
+                - name: BACKUP_BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: BACKUP_PREFIX
+                  value: {{ .Values.backup.s3.prefix | default "backups/agentsmith" | quote }}
+                - name: ENCRYPTION_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "agentsmith.fullname" . }}-backup-secret
+                      key: encryption-key
+                      optional: true
+                {{- if .Values.backup.s3.enabled }}
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "agentsmith.fullname" . }}-backup-secret
+                      key: aws-access-key-id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "agentsmith.fullname" . }}-backup-secret
+                      key: aws-secret-access-key
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.s3.region | quote }}
+                {{- end }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  # Install required tools
+                  apk add --no-cache aws-cli gzip openssl
+
+                  # Generate backup filename
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  BACKUP_FILE="agentsmith_${TIMESTAMP}.sql"
+                  COMPRESSED_FILE="${BACKUP_FILE}.gz"
+                  ENCRYPTED_FILE="${COMPRESSED_FILE}.enc"
+
+                  echo "Starting backup at ${TIMESTAMP}"
+                  echo "Database: ${PGDATABASE}@${PGHOST}:${PGPORT}"
+
+                  # Create backup directory
+                  mkdir -p /tmp/backup
+                  cd /tmp/backup
+
+                  # Perform PostgreSQL dump
+                  echo "Creating database dump..."
+                  pg_dump \
+                    --format=plain \
+                    --no-owner \
+                    --no-privileges \
+                    --verbose \
+                    > "${BACKUP_FILE}"
+
+                  # Check dump was created
+                  if [ ! -f "${BACKUP_FILE}" ]; then
+                    echo "ERROR: Backup file was not created"
+                    exit 1
+                  fi
+
+                  DUMP_SIZE=$(du -h "${BACKUP_FILE}" | cut -f1)
+                  echo "Dump created: ${DUMP_SIZE}"
+
+                  # Compress the backup
+                  echo "Compressing backup..."
+                  gzip -9 "${BACKUP_FILE}"
+
+                  COMPRESSED_SIZE=$(du -h "${COMPRESSED_FILE}" | cut -f1)
+                  echo "Compressed size: ${COMPRESSED_SIZE}"
+
+                  # Encrypt if key is provided
+                  UPLOAD_FILE="${COMPRESSED_FILE}"
+                  if [ -n "${ENCRYPTION_KEY}" ]; then
+                    echo "Encrypting backup..."
+                    openssl enc -aes-256-cbc -salt -pbkdf2 \
+                      -in "${COMPRESSED_FILE}" \
+                      -out "${ENCRYPTED_FILE}" \
+                      -pass pass:"${ENCRYPTION_KEY}"
+                    UPLOAD_FILE="${ENCRYPTED_FILE}"
+                    rm "${COMPRESSED_FILE}"
+                  fi
+
+                  FINAL_SIZE=$(du -h "${UPLOAD_FILE}" | cut -f1)
+                  echo "Final backup size: ${FINAL_SIZE}"
+
+                  {{- if .Values.backup.s3.enabled }}
+                  # Upload to S3
+                  echo "Uploading to S3..."
+                  S3_PATH="s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${UPLOAD_FILE}"
+
+                  aws s3 cp "${UPLOAD_FILE}" "${S3_PATH}" \
+                    --storage-class {{ .Values.backup.s3.storageClass | default "STANDARD_IA" }}
+
+                  echo "Backup uploaded to: ${S3_PATH}"
+
+                  # Cleanup old backups
+                  {{- if .Values.backup.retention.enabled }}
+                  echo "Cleaning up old backups..."
+                  RETENTION_DAYS={{ .Values.backup.retention.days | default 30 }}
+                  CUTOFF_DATE=$(date -d "-${RETENTION_DAYS} days" +%Y-%m-%d)
+
+                  aws s3 ls "s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/" | while read -r line; do
+                    BACKUP_DATE=$(echo "$line" | awk '{print $1}')
+                    BACKUP_NAME=$(echo "$line" | awk '{print $4}')
+                    if [ "${BACKUP_DATE}" \< "${CUTOFF_DATE}" ]; then
+                      echo "Deleting old backup: ${BACKUP_NAME}"
+                      aws s3 rm "s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${BACKUP_NAME}"
+                    fi
+                  done
+                  {{- end }}
+                  {{- else }}
+                  # Local backup (PVC)
+                  echo "Storing backup locally..."
+                  mv "${UPLOAD_FILE}" /backup/
+                  echo "Backup stored at: /backup/${UPLOAD_FILE}"
+
+                  # Cleanup old local backups
+                  {{- if .Values.backup.retention.enabled }}
+                  echo "Cleaning up old backups..."
+                  find /backup -name "agentsmith_*.sql.gz*" -mtime +{{ .Values.backup.retention.days | default 30 }} -delete
+                  {{- end }}
+                  {{- end }}
+
+                  # Verify backup integrity
+                  echo "Backup completed successfully!"
+                  echo "Timestamp: ${TIMESTAMP}"
+                  echo "Size: ${FINAL_SIZE}"
+
+                  # Cleanup temp files
+                  rm -rf /tmp/backup
+
+                  echo "Backup job finished at $(date)"
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                {{- if not .Values.backup.s3.enabled }}
+                - name: backup-storage
+                  mountPath: /backup
+                {{- end }}
+          volumes:
+            {{- if not .Values.backup.s3.enabled }}
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: {{ include "agentsmith.fullname" . }}-backup
+            {{- end }}
+---
+{{- if not .Values.backup.s3.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-backup
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.backup.storage.size | default "50Gi" }}
+  {{- if .Values.backup.storage.storageClass }}
+  storageClassName: {{ .Values.backup.storage.storageClass }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "agentsmith.fullname" . }}-backup-secret
+  labels:
+    {{- include "agentsmith.labels" . | nindent 4 }}
+type: Opaque
+data:
+  {{- if .Values.backup.encryptionKey }}
+  encryption-key: {{ .Values.backup.encryptionKey | b64enc }}
+  {{- end }}
+  {{- if .Values.backup.s3.enabled }}
+  aws-access-key-id: {{ .Values.backup.s3.accessKeyId | b64enc }}
+  aws-secret-access-key: {{ .Values.backup.s3.secretAccessKey | b64enc }}
+  {{- end }}
+{{- end }}

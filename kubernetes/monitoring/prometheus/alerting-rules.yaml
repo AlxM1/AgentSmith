@@ -1,0 +1,306 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agentsmith-alerts
+  namespace: monitoring
+  labels:
+    app: agentsmith
+    prometheus: main
+    role: alert-rules
+spec:
+  groups:
+    # ============================================
+    # Service Health Alerts
+    # ============================================
+    - name: agentsmith.service.health
+      rules:
+        - alert: AgentSmithDown
+          expr: up{job="agentsmith"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "AgentSmith service is down"
+            description: "AgentSmith instance {{ $labels.instance }} has been down for more than 1 minute."
+            runbook_url: "https://docs.agentsmith.io/runbooks/service-down"
+
+        - alert: AgentSmithHighRestartCount
+          expr: increase(kube_pod_container_status_restarts_total{container="agentsmith"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "AgentSmith container restarting frequently"
+            description: "AgentSmith container has restarted {{ $value }} times in the last hour."
+
+        - alert: AgentSmithHealthCheckFailing
+          expr: agentsmith_health_check_status == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "AgentSmith health check failing"
+            description: "AgentSmith health check has been failing for more than 2 minutes on {{ $labels.instance }}."
+
+    # ============================================
+    # Resource Utilization Alerts
+    # ============================================
+    - name: agentsmith.resources
+      rules:
+        - alert: AgentSmithHighCPU
+          expr: rate(process_cpu_seconds_total{job="agentsmith"}[5m]) * 100 > 80
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "AgentSmith high CPU usage"
+            description: "AgentSmith CPU usage is above 80% (current: {{ $value | printf \"%.2f\" }}%)."
+
+        - alert: AgentSmithHighMemory
+          expr: (process_resident_memory_bytes{job="agentsmith"} / 1024 / 1024 / 1024) > 3.5
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "AgentSmith high memory usage"
+            description: "AgentSmith memory usage is above 3.5GB (current: {{ $value | printf \"%.2f\" }}GB)."
+
+        - alert: AgentSmithCriticalMemory
+          expr: (process_resident_memory_bytes{job="agentsmith"} / 1024 / 1024 / 1024) > 3.8
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "AgentSmith critical memory usage"
+            description: "AgentSmith memory usage is critically high at {{ $value | printf \"%.2f\" }}GB. Pod may be killed soon."
+
+    # ============================================
+    # Execution Alerts
+    # ============================================
+    - name: agentsmith.executions
+      rules:
+        - alert: AgentSmithHighExecutionFailureRate
+          expr: |
+            sum(rate(agentsmith_executions_total{status="error"}[5m]))
+            /
+            sum(rate(agentsmith_executions_total[5m])) * 100 > 10
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High workflow execution failure rate"
+            description: "Workflow execution failure rate is above 10% (current: {{ $value | printf \"%.2f\" }}%)."
+
+        - alert: AgentSmithCriticalExecutionFailureRate
+          expr: |
+            sum(rate(agentsmith_executions_total{status="error"}[5m]))
+            /
+            sum(rate(agentsmith_executions_total[5m])) * 100 > 25
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Critical workflow execution failure rate"
+            description: "Workflow execution failure rate is above 25% (current: {{ $value | printf \"%.2f\" }}%)."
+
+        - alert: AgentSmithSlowExecutions
+          expr: histogram_quantile(0.95, rate(agentsmith_execution_duration_seconds_bucket[5m])) > 300
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Workflow executions are slow"
+            description: "95th percentile of workflow execution time is above 5 minutes (current: {{ $value | printf \"%.2f\" }}s)."
+
+        - alert: AgentSmithNoExecutions
+          expr: sum(rate(agentsmith_executions_total[1h])) == 0
+          for: 30m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "No workflow executions"
+            description: "No workflow executions have been recorded in the last 30 minutes."
+
+    # ============================================
+    # Queue Alerts
+    # ============================================
+    - name: agentsmith.queue
+      rules:
+        - alert: AgentSmithQueueBacklog
+          expr: agentsmith_queue_depth > 100
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Queue backlog growing"
+            description: "Queue {{ $labels.queue }} has {{ $value }} pending jobs."
+
+        - alert: AgentSmithQueueCriticalBacklog
+          expr: agentsmith_queue_depth > 500
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Critical queue backlog"
+            description: "Queue {{ $labels.queue }} has {{ $value }} pending jobs. Processing may be stalled."
+
+        - alert: AgentSmithQueueHighWaitTime
+          expr: histogram_quantile(0.95, rate(agentsmith_queue_wait_time_seconds_bucket[5m])) > 60
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High queue wait time"
+            description: "Jobs are waiting more than 1 minute in queue (p95: {{ $value | printf \"%.2f\" }}s)."
+
+        - alert: AgentSmithQueueHighFailureRate
+          expr: |
+            rate(agentsmith_queue_failed_total[5m])
+            /
+            rate(agentsmith_queue_processed_total[5m]) * 100 > 5
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High queue job failure rate"
+            description: "Queue job failure rate is above 5% (current: {{ $value | printf \"%.2f\" }}%)."
+
+    # ============================================
+    # HTTP/API Alerts
+    # ============================================
+    - name: agentsmith.http
+      rules:
+        - alert: AgentSmithHighErrorRate
+          expr: |
+            sum(rate(http_request_duration_seconds_count{job="agentsmith",status_code=~"5.."}[5m]))
+            /
+            sum(rate(http_request_duration_seconds_count{job="agentsmith"}[5m])) * 100 > 5
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High HTTP error rate"
+            description: "HTTP 5xx error rate is above 5% (current: {{ $value | printf \"%.2f\" }}%)."
+
+        - alert: AgentSmithCriticalErrorRate
+          expr: |
+            sum(rate(http_request_duration_seconds_count{job="agentsmith",status_code=~"5.."}[5m]))
+            /
+            sum(rate(http_request_duration_seconds_count{job="agentsmith"}[5m])) * 100 > 15
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Critical HTTP error rate"
+            description: "HTTP 5xx error rate is above 15% (current: {{ $value | printf \"%.2f\" }}%)."
+
+        - alert: AgentSmithSlowResponses
+          expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="agentsmith"}[5m])) > 2
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Slow API responses"
+            description: "95th percentile response time is above 2 seconds (current: {{ $value | printf \"%.2f\" }}s)."
+
+        - alert: AgentSmithHighRequestRate
+          expr: sum(rate(http_request_duration_seconds_count{job="agentsmith"}[1m])) > 1000
+          for: 5m
+          labels:
+            severity: info
+            team: platform
+          annotations:
+            summary: "High request rate"
+            description: "Request rate is above 1000/second (current: {{ $value | printf \"%.2f\" }}/s). Consider scaling."
+
+    # ============================================
+    # Database Alerts
+    # ============================================
+    - name: agentsmith.database
+      rules:
+        - alert: AgentSmithDatabaseConnectionsHigh
+          expr: pg_stat_activity_count{datname="agentsmith"} > 80
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "High database connection count"
+            description: "Database connection count is {{ $value }}, approaching limit."
+
+        - alert: AgentSmithDatabaseSlowQueries
+          expr: rate(pg_stat_statements_seconds_total{datname="agentsmith"}[5m]) > 1
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Slow database queries"
+            description: "Average query time is above 1 second."
+
+    # ============================================
+    # Redis Alerts
+    # ============================================
+    - name: agentsmith.redis
+      rules:
+        - alert: AgentSmithRedisDown
+          expr: redis_up{job="agentsmith-redis"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Redis is down"
+            description: "Redis instance is not responding."
+
+        - alert: AgentSmithRedisHighMemory
+          expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Redis high memory usage"
+            description: "Redis memory usage is above 80% (current: {{ $value | printf \"%.2f\" }}%)."
+
+    # ============================================
+    # Certificate Alerts
+    # ============================================
+    - name: agentsmith.certificates
+      rules:
+        - alert: AgentSmithCertificateExpiringSoon
+          expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 30
+          for: 1h
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "SSL certificate expiring soon"
+            description: "SSL certificate for {{ $labels.instance }} expires in {{ $value | printf \"%.0f\" }} days."
+
+        - alert: AgentSmithCertificateExpiryCritical
+          expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 7
+          for: 1h
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "SSL certificate expiring very soon"
+            description: "SSL certificate for {{ $labels.instance }} expires in {{ $value | printf \"%.0f\" }} days!"

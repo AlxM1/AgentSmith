@@ -1,0 +1,159 @@
+# AgentSmith Helm Chart - Staging Environment Values
+# Optimized for cost-efficiency while maintaining test fidelity
+
+# Replica configuration - reduced for staging
+replicaCount:
+  main: 1
+  worker: 2
+  webhook: 1
+
+# High Availability - reduced for staging
+highAvailability:
+  enabled: true
+  leaderElection: true
+
+# Main application - reduced resources
+main:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+
+# Worker - reduced for staging
+worker:
+  enabled: true
+  replicas: 2
+  concurrency: 5
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# Webhook processor - reduced
+webhook:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+
+# Ingress - staging domain
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+  hosts:
+    - host: staging.agentsmith.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: agentsmith-staging-tls
+      hosts:
+        - staging.agentsmith.example.com
+
+# PostgreSQL - smaller for staging
+postgresql:
+  enabled: true
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  readReplicas:
+    replicaCount: 0  # No read replicas in staging
+
+# Redis - minimal for staging
+redis:
+  enabled: true
+  architecture: standalone  # Single instance for staging
+  auth:
+    enabled: true
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 512Mi
+  replica:
+    replicaCount: 0
+
+# Application configuration - staging specific
+config:
+  nodeEnv: staging
+  logLevel: debug
+
+  # More aggressive rate limiting for testing
+  rateLimit:
+    windowMs: 60000
+    max: 200
+
+  # Shorter execution retention for staging
+  executions:
+    pruneDataMaxAge: 72  # 3 days
+    pruneDataMaxCount: 1000
+
+# Metrics - enabled for staging
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 60s
+
+# Smaller persistence
+persistence:
+  enabled: true
+  size: 5Gi
+
+# Pod disruption budget - allow all pods to be disrupted in staging
+podDisruptionBudget:
+  enabled: false
+
+# Extra environment for staging
+extraEnv:
+  - name: STAGING_MODE
+    value: "true"
+  - name: DEBUG
+    value: "true"
+  - name: LOG_FORMAT
+    value: "json"

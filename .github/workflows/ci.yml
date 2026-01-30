@@ -10,6 +10,7 @@ env:
   NODE_VERSION: '20'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  HELM_VERSION: '3.13.0'
 
 jobs:
   # ============================================
@@ -36,6 +37,45 @@ jobs:
 
       - name: Type check
         run: npm run typecheck --workspaces --if-present
+
+  # ============================================
+  # Security Scan
+  # ============================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
 
   # ============================================
   # Unit Tests
@@ -157,14 +197,22 @@ jobs:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_tag: ${{ steps.vars.outputs.image_tag }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set variables
+        id: vars
+        run: |
+          echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -176,25 +224,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix=
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-
       - name: Build and push Backend
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.backend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.sha }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_VERSION=${{ github.sha }}
 
       - name: Build and push Worker
         uses: docker/build-push-action@v5
@@ -202,7 +244,9 @@ jobs:
           context: .
           file: docker/Dockerfile.worker
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${{ github.sha }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -212,10 +256,9 @@ jobs:
           context: .
           file: docker/Dockerfile.frontend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
-          build-args: |
-            NODE_ENV=production
-            VITE_API_URL=/api/v1
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -225,57 +268,312 @@ jobs:
           context: .
           file: docker/Dockerfile.admin
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/admin:${{ github.sha }}
-          build-args: |
-            NODE_ENV=production
-            VITE_API_URL=/api/v1
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/admin:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/admin:${{ github.ref == 'refs/heads/main' && 'latest' || 'develop' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Scan images for vulnerabilities
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.sha }}
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy image --severity HIGH,CRITICAL \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.sha }}
+        continue-on-error: true
+
   # ============================================
-  # Security Scan
+  # Deploy to Staging (develop branch)
   # ============================================
-  security:
-    name: Security Scan
+  deploy-staging:
+    name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [docker, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment: staging
+    concurrency:
+      group: staging-deploy
+      cancel-in-progress: false
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          version: ${{ env.HELM_VERSION }}
 
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v2
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure Kubernetes context
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.STAGING_KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy to staging
+        run: |
+          helm upgrade --install agentsmith-staging ./kubernetes/helm/agentsmith \
+            --namespace agentsmith-staging \
+            --create-namespace \
+            --set image.tag=${{ github.sha }} \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set environment=staging \
+            --set ingress.hosts[0].host=staging.agentsmith.example.com \
+            --values ./kubernetes/helm/agentsmith/values-staging.yaml \
+            --wait \
+            --timeout 10m
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/agentsmith-backend -n agentsmith-staging --timeout=5m
+          kubectl rollout status deployment/agentsmith-worker -n agentsmith-staging --timeout=5m
+          kubectl rollout status deployment/agentsmith-frontend -n agentsmith-staging --timeout=5m
+
+      - name: Run smoke tests
+        run: |
+          STAGING_URL="https://staging.agentsmith.example.com"
+
+          # Health check
+          echo "Running health checks..."
+          for i in {1..10}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$STAGING_URL/api/health" || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed!"
+              break
+            fi
+            echo "Attempt $i: Health check returned $HTTP_CODE, retrying..."
+            sleep 10
+          done
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Health check failed after 10 attempts"
+            exit 1
+          fi
+
+          # API endpoint test
+          echo "Testing API endpoints..."
+          curl -sf "$STAGING_URL/api/health/ready" || exit 1
+
+          echo "Smoke tests passed!"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Staging deployment failed - would send notification here"
+          # curl -X POST "${{ secrets.SLACK_WEBHOOK }}" \
+          #   -H "Content-Type: application/json" \
+          #   -d '{"text":"Staging deployment failed for commit ${{ github.sha }}"}'
 
   # ============================================
-  # Deploy (only on main branch)
+  # Deploy to Production (main branch)
   # ============================================
-  deploy:
+  deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [docker, security]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy notification
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure Kubernetes context
         run: |
-          echo "Deployment would happen here"
+          mkdir -p ~/.kube
+          echo "${{ secrets.PRODUCTION_KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Pre-deployment checks
+        run: |
+          echo "Running pre-deployment checks..."
+
+          # Check cluster health
+          kubectl get nodes
+          kubectl cluster-info
+
+          # Check current deployment status
+          kubectl get deployments -n agentsmith-production || true
+
+          # Verify images exist
+          echo "Verifying images..."
+          docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.sha }}
+          docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
+          docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${{ github.sha }}
+
+      - name: Create deployment record
+        run: |
+          echo "Creating deployment record..."
+          echo "DEPLOYMENT_ID=$(date +%Y%m%d%H%M%S)-${{ github.sha }}" >> $GITHUB_ENV
+          echo "PREVIOUS_TAG=$(kubectl get deployment agentsmith-backend -n agentsmith-production -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null | cut -d: -f2 || echo 'none')" >> $GITHUB_ENV
+
+      - name: Deploy to production
+        id: deploy
+        run: |
+          echo "Deploying to production..."
+
+          helm upgrade --install agentsmith ./kubernetes/helm/agentsmith \
+            --namespace agentsmith-production \
+            --create-namespace \
+            --set image.tag=${{ github.sha }} \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set environment=production \
+            --set ingress.hosts[0].host=agentsmith.example.com \
+            --set replicaCount.backend=3 \
+            --set replicaCount.worker=3 \
+            --set replicaCount.frontend=2 \
+            --values ./kubernetes/helm/agentsmith/values-production.yaml \
+            --wait \
+            --timeout 15m \
+            --atomic
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment..."
+
+          kubectl rollout status deployment/agentsmith-backend -n agentsmith-production --timeout=5m
+          kubectl rollout status deployment/agentsmith-worker -n agentsmith-production --timeout=5m
+          kubectl rollout status deployment/agentsmith-frontend -n agentsmith-production --timeout=5m
+
+          # Check pod health
+          kubectl get pods -n agentsmith-production -l app.kubernetes.io/name=agentsmith
+
+          # Check for any failing pods
+          FAILING_PODS=$(kubectl get pods -n agentsmith-production -o jsonpath='{.items[?(@.status.phase!="Running")].metadata.name}')
+          if [ -n "$FAILING_PODS" ]; then
+            echo "Warning: Some pods are not running: $FAILING_PODS"
+            kubectl describe pods $FAILING_PODS -n agentsmith-production
+          fi
+
+      - name: Run production smoke tests
+        run: |
+          PROD_URL="https://agentsmith.example.com"
+
+          echo "Running production smoke tests..."
+
+          # Health check with retries
+          for i in {1..15}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL/api/health" || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed!"
+              break
+            fi
+            echo "Attempt $i: Health check returned $HTTP_CODE, retrying..."
+            sleep 10
+          done
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Health check failed!"
+            exit 1
+          fi
+
+          # Readiness check
+          curl -sf "$PROD_URL/api/health/ready" || exit 1
+
+          # Liveness check
+          curl -sf "$PROD_URL/api/health/live" || exit 1
+
+          # API version check
+          API_VERSION=$(curl -sf "$PROD_URL/api/version" | jq -r '.version' || echo "unknown")
+          echo "Deployed API version: $API_VERSION"
+
+          echo "All smoke tests passed!"
+
+      - name: Rollback on failure
+        if: failure() && steps.deploy.outcome == 'failure'
+        run: |
+          echo "Deployment failed, initiating rollback..."
+
+          if [ "${{ env.PREVIOUS_TAG }}" != "none" ]; then
+            helm rollback agentsmith -n agentsmith-production
+
+            # Wait for rollback
+            kubectl rollout status deployment/agentsmith-backend -n agentsmith-production --timeout=5m
+
+            echo "Rollback completed to previous version"
+          else
+            echo "No previous deployment to rollback to"
+          fi
+
+      - name: Create GitHub deployment status
+        if: always()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          state: ${{ job.status }}
+          deployment-id: ${{ steps.deploy.outputs.deployment_id }}
+          environment-url: https://agentsmith.example.com
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "Production deployment successful!"
           echo "Commit: ${{ github.sha }}"
-          echo "Image tags built and pushed to registry"
-          # Add your deployment script here
-          # e.g., kubectl apply, docker-compose pull & up, etc.
+          echo "Deployed at: $(date -u)"
+          # Add Slack/Discord notification here
+          # curl -X POST "${{ secrets.SLACK_WEBHOOK }}" \
+          #   -H "Content-Type: application/json" \
+          #   -d '{"text":"Production deployment successful for commit ${{ github.sha }}"}'
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Production deployment failed!"
+          # curl -X POST "${{ secrets.SLACK_WEBHOOK }}" \
+          #   -H "Content-Type: application/json" \
+          #   -d '{"text":"Production deployment FAILED for commit ${{ github.sha }}"}'
+
+  # ============================================
+  # Post-deployment E2E Tests (Production)
+  # ============================================
+  e2e-production:
+    name: E2E Tests (Production)
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: success()
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        env:
+          BASE_URL: https://agentsmith.example.com
+        run: npx playwright test --project=chromium
+        continue-on-error: true
+
+      - name: Upload E2E results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

@@ -419,3 +419,51 @@ podAnnotations: {}
 
 # Labels for all pods
 podLabels: {}
+
+# ============================================
+# Backup Configuration
+# ============================================
+backup:
+  enabled: true
+  # Cron schedule (default: daily at 2 AM)
+  schedule: "0 2 * * *"
+  # Timeout in seconds
+  timeout: 3600
+  # Number of retries
+  retries: 2
+  # History limits
+  historyLimit:
+    successful: 3
+    failed: 3
+
+  # S3 backup configuration
+  s3:
+    enabled: false
+    bucket: ""
+    prefix: "backups/agentsmith"
+    region: "us-east-1"
+    accessKeyId: ""
+    secretAccessKey: ""
+    storageClass: "STANDARD_IA"
+
+  # Local storage (if S3 not enabled)
+  storage:
+    size: "50Gi"
+    storageClass: ""
+
+  # Backup encryption
+  encryptionKey: ""
+
+  # Retention policy
+  retention:
+    enabled: true
+    days: 30
+
+  # Resource limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi

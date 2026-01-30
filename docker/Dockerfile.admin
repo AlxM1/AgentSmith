@@ -1,20 +1,63 @@
-# Admin Dockerfile
-FROM node:20-alpine
+# Admin Panel Dockerfile - Production Build
+# Multi-stage build with nginx for serving static assets
 
+# ============ Stage 1: Dependencies ============
+FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Install dependencies
+# Copy package files
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/admin/package.json ./packages/admin/
 
-RUN npm install
+# Install dependencies
+RUN npm ci
 
-# Copy source
+# ============ Stage 2: Builder ============
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/packages/admin/node_modules ./packages/admin/node_modules
+
+# Copy source code
 COPY packages/shared ./packages/shared
 COPY packages/admin ./packages/admin
 COPY tsconfig.base.json ./
 
+# Build shared package
+WORKDIR /app/packages/shared
+RUN npm run build
+
+# Build admin panel with production optimizations
+WORKDIR /app/packages/admin
+ENV NODE_ENV=production
+RUN npm run build
+
+# ============ Stage 3: Production with Nginx ============
+FROM nginx:alpine AS production
+
+# Security: Create custom user
+RUN addgroup -g 1001 -S nginx-app && \
+    adduser -S nginx-app -u 1001 -G nginx-app
+
+# Copy custom nginx config
+COPY docker/nginx/admin.conf /etc/nginx/nginx.conf
+
+# Copy built static files
+COPY --from=builder /app/packages/admin/dist /usr/share/nginx/html
+
+# Create cache directories with proper permissions
+RUN mkdir -p /var/cache/nginx /var/run && \
+    chown -R nginx-app:nginx-app /var/cache/nginx /var/run /usr/share/nginx/html && \
+    chmod -R 755 /usr/share/nginx/html
+
 EXPOSE 3001
 
-CMD ["npm", "run", "dev:admin"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

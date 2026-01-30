@@ -1,0 +1,337 @@
+# AgentSmith Helm Chart - Production Environment Values
+# Optimized for high availability, performance, and security
+
+# Replica configuration - production scale
+replicaCount:
+  main: 3
+  worker: 5
+  webhook: 3
+
+# High Availability - fully enabled
+highAvailability:
+  enabled: true
+  leaderElection: true
+
+# Main application - production resources
+main:
+  enabled: true
+  replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 15
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - main
+          topologyKey: kubernetes.io/hostname
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                  - application
+
+# Worker - production scale
+worker:
+  enabled: true
+  replicas: 5
+  concurrency: 20
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 30
+    targetCPUUtilizationPercentage: 60
+    customMetrics:
+      - type: External
+        external:
+          metric:
+            name: agentsmith_queue_depth
+          target:
+            type: AverageValue
+            averageValue: "50"
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - worker
+            topologyKey: kubernetes.io/hostname
+
+# Webhook processor - production scale
+webhook:
+  enabled: true
+  replicas: 3
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 15
+    targetCPUUtilizationPercentage: 70
+
+# Ingress - production domain with enhanced security
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/websocket-services: "agentsmith"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: agentsmith.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: agentsmith-production-tls
+      hosts:
+        - agentsmith.example.com
+
+# PostgreSQL - production scale with HA
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: agentsmith-db-secret
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: "fast-ssd"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+    configuration: |
+      max_connections = 500
+      shared_buffers = 2GB
+      effective_cache_size = 6GB
+      maintenance_work_mem = 512MB
+      checkpoint_completion_target = 0.9
+      wal_buffers = 64MB
+      default_statistics_target = 100
+      random_page_cost = 1.1
+      effective_io_concurrency = 200
+      work_mem = 10MB
+      min_wal_size = 1GB
+      max_wal_size = 4GB
+      max_worker_processes = 4
+      max_parallel_workers_per_gather = 2
+      max_parallel_workers = 4
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: "fast-ssd"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+# Redis - production cluster mode
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: true
+    existingSecret: agentsmith-redis-secret
+  master:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: "fast-ssd"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    configuration: |
+      maxmemory 3gb
+      maxmemory-policy allkeys-lru
+      tcp-keepalive 300
+      timeout 0
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# Application configuration - production optimized
+config:
+  nodeEnv: production
+  logLevel: info
+
+  # Production rate limiting
+  rateLimit:
+    windowMs: 60000
+    max: 100
+
+  # Standard execution retention
+  executions:
+    pruneDataMaxAge: 720  # 30 days
+    pruneDataMaxCount: 50000
+
+  # Production queue settings
+  queue:
+    defaultTimeout: 600000  # 10 minutes
+    maxRetries: 5
+
+# Metrics - full monitoring in production
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 15s
+    scrapeTimeout: 10s
+    additionalLabels:
+      release: prometheus
+
+# Production persistence
+persistence:
+  enabled: true
+  storageClass: "fast-ssd"
+  size: 50Gi
+
+# Strict security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Network policies - strict in production
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+        - protocol: UDP
+          port: 53
+
+# Pod disruption budget - ensure availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Probes - tighter for production
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+  successThreshold: 1
+
+# Production environment variables
+extraEnv:
+  - name: NODE_OPTIONS
+    value: "--max-old-space-size=4096"
+  - name: UV_THREADPOOL_SIZE
+    value: "16"
+  - name: LOG_FORMAT
+    value: "json"
+  - name: ENABLE_PROMETHEUS_METRICS
+    value: "true"
+  - name: SENTRY_ENVIRONMENT
+    value: "production"
+
+# Pod annotations for production
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3000"
+  prometheus.io/path: "/metrics"
+
+# Pod labels
+podLabels:
+  environment: production
+  tier: application

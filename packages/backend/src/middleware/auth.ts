@@ -6,12 +6,16 @@ import { config } from '../config/index.js';
 import { UnauthorizedError, ForbiddenError } from './errorHandler.js';
 import type { UserRole, IUserPublicData } from '@agentsmith/shared';
 
+// Import ApiKey type
+import type { ApiKey } from '../services/ApiKeyService.js';
+
 // Extend Express Request type
 declare global {
   namespace Express {
     interface Request {
       user?: IUserPublicData;
       token?: string;
+      apiKey?: ApiKey;
     }
   }
 }
@@ -183,24 +187,110 @@ export function verifyRefreshToken(token: string): { userId: string } {
 /**
  * API Key authentication middleware
  */
-export function authenticateApiKey(
+export async function authenticateApiKey(
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction
 ) {
   try {
-    const apiKey = req.headers['x-api-key'] as string;
+    const apiKeyHeader = req.headers['x-api-key'] as string;
 
-    if (!apiKey) {
+    if (!apiKeyHeader) {
       throw new UnauthorizedError('No API key provided');
     }
 
-    // TODO: Validate API key against database
-    // For now, this is a placeholder
-    // const keyData = await apiKeyService.validate(apiKey);
+    // Validate API key
+    const { apiKeyService } = await import('../services/ApiKeyService.js');
+    const result = await apiKeyService.validateKey(apiKeyHeader);
+
+    if (!result.valid || !result.apiKey) {
+      throw new UnauthorizedError(result.error || 'Invalid API key');
+    }
+
+    // Check rate limits
+    const clientIp = req.ip || req.socket.remoteAddress;
+    const rateLimitResult = apiKeyService.checkRateLimit(result.apiKey, clientIp);
+
+    if (!rateLimitResult.allowed) {
+      res.setHeader('Retry-After', String(rateLimitResult.retryAfter || 60));
+      res.setHeader('X-RateLimit-Limit', String(result.apiKey.rateLimit?.requestsPerMinute || 'unlimited'));
+      res.setHeader('X-RateLimit-Remaining', '0');
+      return res.status(429).json({
+        error: 'Rate limit exceeded',
+        retryAfter: rateLimitResult.retryAfter,
+      });
+    }
+
+    // Attach API key info to request
+    req.apiKey = result.apiKey;
+    req.user = {
+      id: result.userId!,
+      email: `apikey:${result.apiKey.keyPrefix}`,
+      role: 'user', // API keys use scope-based permissions
+    };
 
     next();
   } catch (error) {
     next(error);
   }
+}
+
+/**
+ * Require specific API key scope
+ */
+export function requireApiKeyScope(scope: string) {
+  return async (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.apiKey) {
+      return next(new UnauthorizedError('API key authentication required'));
+    }
+
+    const { apiKeyService } = await import('../services/ApiKeyService.js');
+
+    if (!apiKeyService.hasScope(req.apiKey, scope as any)) {
+      return next(new ForbiddenError(`API key lacks required scope: ${scope}`));
+    }
+
+    next();
+  };
+}
+
+/**
+ * Check API key permission for resource/action
+ */
+export function requireApiKeyPermission(resource: string, action: string) {
+  return async (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.apiKey) {
+      return next(new UnauthorizedError('API key authentication required'));
+    }
+
+    const { apiKeyService } = await import('../services/ApiKeyService.js');
+
+    if (!apiKeyService.hasPermission(req.apiKey, resource, action)) {
+      return next(new ForbiddenError(`API key lacks permission: ${resource}:${action}`));
+    }
+
+    next();
+  };
+}
+
+/**
+ * Combined auth - accepts either JWT or API key
+ */
+export async function authenticateAny(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const authHeader = req.headers.authorization;
+  const apiKeyHeader = req.headers['x-api-key'];
+
+  if (apiKeyHeader) {
+    return authenticateApiKey(req, res, next);
+  }
+
+  if (authHeader) {
+    return authenticate(req, res, next);
+  }
+
+  next(new UnauthorizedError('Authentication required. Provide Bearer token or X-API-Key header.'));
 }
