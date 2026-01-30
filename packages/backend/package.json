@@ -37,7 +37,10 @@
     "cron": "^3.1.6",
     "cookie-parser": "^1.4.6",
     "nodemailer": "^6.9.8",
-    "axios": "^1.6.5"
+    "axios": "^1.6.5",
+    "ws": "^8.16.0",
+    "swagger-ui-express": "^5.0.0",
+    "rate-limiter-flexible": "^4.0.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
@@ -51,9 +54,13 @@
     "@types/node-cron": "^3.0.11",
     "@types/cookie-parser": "^1.4.6",
     "@types/nodemailer": "^6.4.14",
+    "@types/ws": "^8.5.10",
+    "@types/swagger-ui-express": "^4.1.6",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^1.2.1",
-    "drizzle-kit": "^0.20.13"
+    "drizzle-kit": "^0.20.13",
+    "supertest": "^6.3.4",
+    "@types/supertest": "^6.0.2"
   }
 }

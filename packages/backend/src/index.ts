@@ -2,6 +2,7 @@
 
 import 'dotenv/config';
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -13,6 +14,8 @@ import { logger } from './lib/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 import { queueService } from './services/QueueService.js';
+import { webSocketService } from './services/WebSocketService.js';
+import { userRateLimiter } from './middleware/userRateLimiter.js';
 
 // Import routes
 import { authRouter } from './routes/auth.js';
@@ -26,6 +29,7 @@ import { healthRouter } from './routes/health.js';
 import { adminRouter } from './routes/admin.js';
 import { ssoRouter } from './routes/sso.js';
 import { twoFactorRouter } from './routes/twoFactor.js';
+import { docsRouter } from './routes/docs.js';
 import cookieParser from 'cookie-parser';
 
 // Create Express app
@@ -68,6 +72,9 @@ app.use(morgan('combined', {
 app.use('/health', healthRouter);
 app.use('/api/v1/health', healthRouter);
 
+// API Documentation (Swagger UI)
+app.use('/api/docs', docsRouter);
+
 // API routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/auth/sso', ssoRouter);
@@ -92,6 +99,9 @@ app.use(errorHandler);
 const PORT = config.port;
 const HOST = config.host;
 
+// Create HTTP server for both Express and WebSocket
+const httpServer = createServer(app);
+
 // Initialize services and start server
 const startServer = async () => {
   try {
@@ -99,9 +109,14 @@ const startServer = async () => {
     await queueService.initialize();
     logger.info('Queue service initialized');
 
+    // Initialize WebSocket service
+    webSocketService.initialize(httpServer);
+    logger.info('WebSocket service initialized');
+
     // Start HTTP server
-    const server = app.listen(PORT, HOST, () => {
+    httpServer.listen(PORT, HOST, () => {
       logger.info(`AgentSmith Backend running at http://${HOST}:${PORT}`);
+      logger.info(`WebSocket available at ws://${HOST}:${PORT}/ws`);
       logger.info(`Environment: ${config.nodeEnv}`);
     });
 
@@ -109,8 +124,12 @@ const startServer = async () => {
     const shutdown = async (signal: string) => {
       logger.info(`${signal} received, shutting down gracefully...`);
 
+      // Shutdown WebSocket service
+      webSocketService.shutdown();
+      logger.info('WebSocket service shut down');
+
       // Close HTTP server
-      server.close(() => {
+      httpServer.close(() => {
         logger.info('HTTP server closed');
       });
 
@@ -132,4 +151,4 @@ const startServer = async () => {
 
 startServer();
 
-export { app };
+export { app, httpServer, webSocketService };
