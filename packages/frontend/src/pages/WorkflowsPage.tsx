@@ -36,7 +36,7 @@ export function WorkflowsPage() {
     onSuccess: (response) => {
       if (response.success && response.data) {
         queryClient.invalidateQueries({ queryKey: ['workflows'] });
-        navigate(`/workflows/${response.data.id}`);
+        navigate(`/workflows/${(response.data as any).id}`);
         toast({ title: 'Workflow created', type: 'success' });
       }
     },
@@ -84,7 +84,7 @@ export function WorkflowsPage() {
     createMutation.mutate('New Workflow');
   };
 
-  const workflows: IWorkflowListItem[] = data?.data || [];
+  const workflows: IWorkflowListItem[] = (data as any)?.data || [];
 
   const getStatusBadge = (status: string) => {
     switch (status) {

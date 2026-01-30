@@ -68,6 +68,47 @@ export const config = {
     type: process.env.STORAGE_TYPE || 'local',
     path: process.env.STORAGE_PATH || './storage',
   },
+
+  // JWT Secret (alias for backward compatibility)
+  jwtSecret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+
+  // High Availability
+  ha: {
+    enabled: process.env.HA_ENABLED === 'true',
+    instanceId: process.env.HA_INSTANCE_ID || `instance-${process.pid}`,
+    heartbeatInterval: parseInt(process.env.HA_HEARTBEAT_INTERVAL || '5000', 10),
+    leaderElectionTimeout: parseInt(process.env.HA_LEADER_TIMEOUT || '30000', 10),
+  },
+
+  // SSO Configuration
+  sso: {
+    enabled: process.env.SSO_ENABLED === 'true',
+    saml: {
+      enabled: process.env.SSO_SAML_ENABLED === 'true',
+      entryPoint: process.env.SSO_SAML_ENTRY_POINT || '',
+      issuer: process.env.SSO_SAML_ISSUER || '',
+      cert: process.env.SSO_SAML_CERT || '',
+      callbackUrl: process.env.SSO_SAML_CALLBACK_URL || '',
+    },
+    oidc: {
+      enabled: process.env.SSO_OIDC_ENABLED === 'true',
+      clientId: process.env.SSO_OIDC_CLIENT_ID || '',
+      clientSecret: process.env.SSO_OIDC_CLIENT_SECRET || '',
+      issuer: process.env.SSO_OIDC_ISSUER || '',
+      authorizationUrl: process.env.SSO_OIDC_AUTH_URL || '',
+      tokenUrl: process.env.SSO_OIDC_TOKEN_URL || '',
+      userInfoUrl: process.env.SSO_OIDC_USERINFO_URL || '',
+      callbackUrl: process.env.SSO_OIDC_CALLBACK_URL || '',
+    },
+    ldap: {
+      enabled: process.env.SSO_LDAP_ENABLED === 'true',
+      url: process.env.SSO_LDAP_URL || '',
+      bindDN: process.env.SSO_LDAP_BIND_DN || '',
+      bindPassword: process.env.SSO_LDAP_BIND_PASSWORD || '',
+      searchBase: process.env.SSO_LDAP_SEARCH_BASE || '',
+      searchFilter: process.env.SSO_LDAP_SEARCH_FILTER || '(uid={{username}})',
+    },
+  },
 };
 
 // Validate required configuration

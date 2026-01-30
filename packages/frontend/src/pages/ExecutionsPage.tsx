@@ -60,8 +60,8 @@ export function ExecutionsPage() {
     },
   });
 
-  const executions: IExecutionListItem[] = executionsData?.data || [];
-  const stats: IExecutionStats = statsData?.data || {
+  const executions: IExecutionListItem[] = (executionsData as any)?.data || [];
+  const stats: IExecutionStats = (statsData as any)?.data || {
     total: 0,
     success: 0,
     failed: 0,

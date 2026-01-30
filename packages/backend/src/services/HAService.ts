@@ -9,7 +9,7 @@
  * - Work distribution
  */
 
-import Redis from 'ioredis';
+import Redis, { Redis as RedisClient } from 'ioredis';
 import crypto from 'crypto';
 import os from 'os';
 import { logger } from '../lib/logger.js';
@@ -75,8 +75,8 @@ type HAEvent =
 
 class HAService extends EventEmitter {
   private config: HAConfig | null = null;
-  private redis: Redis | null = null;
-  private subscriber: Redis | null = null;
+  private redis: RedisClient | null = null;
+  private subscriber: RedisClient | null = null;
   private instanceId: string = '';
   private isLeader: boolean = false;
   private currentLeader: LeaderInfo | null = null;

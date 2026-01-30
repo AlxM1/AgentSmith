@@ -37,7 +37,7 @@ export function LoginPage() {
       const response = await authApi.login(data.email, data.password);
 
       if (response.success && response.data) {
-        login(response.data.user, response.data.tokens);
+        login((response.data as any).user, (response.data as any).tokens);
         toast({ title: 'Welcome back!', type: 'success' });
         navigate('/workflows');
       } else {

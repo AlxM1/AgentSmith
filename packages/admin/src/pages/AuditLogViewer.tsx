@@ -17,7 +17,7 @@ import {
   MapPin,
   Monitor
 } from 'lucide-react';
-import { adminApi } from '../api/client';
+import { apiClient as adminApi } from '../api/client';
 
 interface AuditLogEntry {
   id: string;

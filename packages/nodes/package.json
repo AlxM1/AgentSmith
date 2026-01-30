@@ -10,7 +10,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agentsmith/shared": "workspace:*"
+    "@agentsmith/shared": "*"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

@@ -6,7 +6,7 @@
 import { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
-import { logAuditEvent } from '../security';
+import { logAuditEvent } from '../security/index.js';
 
 // ============================================
 // TYPES

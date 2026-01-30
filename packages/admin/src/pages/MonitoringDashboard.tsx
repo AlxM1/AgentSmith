@@ -17,7 +17,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-import { adminApi } from '../api/client';
+import { apiClient as adminApi } from '../api/client';
 
 interface SystemMetrics {
   cpu: number;

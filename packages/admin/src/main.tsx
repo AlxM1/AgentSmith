@@ -17,7 +17,7 @@ import { AuditLogViewer } from './pages/AuditLogViewer';
 import { Credentials } from './pages/Credentials';
 import { SystemHealth } from './pages/SystemHealth';
 import { SystemSettings } from './pages/SystemSettings';
-import { MonitoringDashboard } from './pages/MonitoringDashboard';
+import MonitoringDashboard from './pages/MonitoringDashboard';
 import { RolesManagement } from './pages/RolesManagement';
 import { Environments } from './pages/Environments';
 

@@ -65,7 +65,7 @@ export function WorkflowEditorPage() {
     if (id) {
       workflowApi.get(id).then((response) => {
         if (response.success && response.data) {
-          setWorkflow(response.data);
+          setWorkflow(response.data as any);
         }
       });
     }

@@ -37,7 +37,7 @@ export function CredentialsPage() {
     },
   });
 
-  const credentials: Credential[] = data?.data || [];
+  const credentials: Credential[] = (data as any)?.data || [];
 
   const getTypeLabel = (type: string): string => {
     const labels: Record<string, string> = {
