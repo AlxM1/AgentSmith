@@ -213,9 +213,9 @@ export class NodeExecutor {
 
           // Handle result
           if (Array.isArray(result)) {
-            results.push(...result.map(r => ({ json: r as Record<string, unknown> })));
+            results.push(...result.map(r => ({ json: r as unknown as Record<string, unknown> })));
           } else if (result && typeof result === 'object') {
-            results.push({ json: result as Record<string, unknown> });
+            results.push({ json: result as unknown as Record<string, unknown> });
           }
         }
 
