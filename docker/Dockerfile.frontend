@@ -17,10 +17,13 @@ RUN npm ci
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy dependencies
+# Copy dependencies (npm workspaces hoists to root node_modules)
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
-COPY --from=deps /app/packages/frontend/node_modules ./packages/frontend/node_modules
+
+# Copy package.json files for workspace resolution
+COPY package.json ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/frontend/package.json ./packages/frontend/
 
 # Copy source code
 COPY packages/shared ./packages/shared
