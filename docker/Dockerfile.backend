@@ -60,6 +60,9 @@ COPY --from=builder /app/packages/backend/package.json ./packages/backend/
 # Copy migrations and other necessary files
 COPY packages/backend/src/db/migrations ./packages/backend/dist/db/migrations
 
+# Create logs directory
+RUN mkdir -p /app/logs
+
 # Set ownership
 RUN chown -R agentsmith:nodejs /app
 

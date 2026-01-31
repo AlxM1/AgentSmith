@@ -31,7 +31,7 @@ const transports: winston.transport[] = [
 
 // Add file transports in production
 if (config.nodeEnv === 'production') {
-  const logDir = process.env.LOG_DIR || '/var/log/agentsmith';
+  const logDir = process.env.LOG_DIR || '/app/logs';
 
   // Error log
   transports.push(
@@ -76,7 +76,7 @@ export const auditLogger = winston.createLogger({
   transports: config.nodeEnv === 'production'
     ? [
         new winston.transports.File({
-          filename: path.join(process.env.LOG_DIR || '/var/log/agentsmith', 'audit.log'),
+          filename: path.join(process.env.LOG_DIR || '/app/logs', 'audit.log'),
           maxsize: 100 * 1024 * 1024,
           maxFiles: 30
         })
