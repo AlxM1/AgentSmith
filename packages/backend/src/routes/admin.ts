@@ -6,7 +6,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { db } from '../db/index.js';
-import { users, workflows, executions, credentials } from '@agentsmith/shared/schema';
+import { users, workflows, executions, credentials } from '../db/schema.js';
 import { eq, desc, sql, count, and, gte, lte, like, or } from 'drizzle-orm';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { logger } from '../lib/logger.js';

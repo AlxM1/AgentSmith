@@ -7,7 +7,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { ssoService, SSOUser } from '../services/SSOService.js';
 import { db } from '../db/index.js';
-import { users } from '@agentsmith/shared/schema';
+import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';

@@ -6,7 +6,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { db } from '../db/index.js';
-import { users } from '@agentsmith/shared/schema';
+import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { twoFactorService, hashBackupCode } from '../services/TwoFactorService.js';
