@@ -8,10 +8,13 @@ WORKDIR /app
 # Install build dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
-# Copy package files
+# Copy package files (all packages needed for npm workspaces resolution)
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/backend/package.json ./packages/backend/
+COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/worker/package.json ./packages/worker/
+COPY packages/admin/package.json ./packages/admin/
 
 # Install all dependencies
 RUN npm ci
@@ -52,10 +55,13 @@ RUN addgroup -g 1001 -S nodejs && \
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
 
-# Install production dependencies only
+# Install production dependencies only (all packages for npm workspaces)
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/backend/package.json ./packages/backend/
+COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/worker/package.json ./packages/worker/
+COPY packages/admin/package.json ./packages/admin/
 
 RUN npm ci --only=production && \
     npm cache clean --force

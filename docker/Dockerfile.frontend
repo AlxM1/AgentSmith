@@ -5,10 +5,13 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Copy package files
+# Copy package files (all packages needed for npm workspaces resolution)
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/backend/package.json ./packages/backend/
 COPY packages/frontend/package.json ./packages/frontend/
+COPY packages/worker/package.json ./packages/worker/
+COPY packages/admin/package.json ./packages/admin/
 
 # Install dependencies
 RUN npm ci
