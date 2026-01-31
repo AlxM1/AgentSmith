@@ -1,11 +1,11 @@
 # Admin Panel Dockerfile - Production Build
 # Multi-stage build with nginx for serving static assets
 
-# ============ Stage 1: Dependencies ============
-FROM node:20-alpine AS deps
+# ============ Stage 1: Builder ============
+FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy package files (all packages needed for npm workspaces resolution)
+# Copy all package files for npm workspaces
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/backend/package.json ./packages/backend/
@@ -15,18 +15,6 @@ COPY packages/admin/package.json ./packages/admin/
 
 # Install dependencies
 RUN npm ci
-
-# ============ Stage 2: Builder ============
-FROM node:20-alpine AS builder
-WORKDIR /app
-
-# Copy dependencies (npm workspaces hoists to root node_modules)
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy package.json files for workspace resolution
-COPY package.json ./
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/admin/package.json ./packages/admin/
 
 # Copy source code
 COPY packages/shared ./packages/shared
@@ -42,7 +30,7 @@ WORKDIR /app/packages/admin
 ENV NODE_ENV=production
 RUN npm run build
 
-# ============ Stage 3: Production with Nginx ============
+# ============ Stage 2: Production with Nginx ============
 FROM nginx:alpine AS production
 
 # Security: Create custom user

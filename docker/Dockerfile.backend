@@ -1,14 +1,14 @@
 # Backend Dockerfile - Production Build
 # Multi-stage build for optimal image size and security
 
-# ============ Stage 1: Dependencies ============
-FROM node:20-alpine AS deps
+# ============ Stage 1: Builder ============
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install build dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
-# Copy package files (all packages needed for npm workspaces resolution)
+# Copy all package files for npm workspaces
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/backend/package.json ./packages/backend/
@@ -18,18 +18,6 @@ COPY packages/admin/package.json ./packages/admin/
 
 # Install all dependencies (including devDependencies for build)
 RUN npm ci
-
-# ============ Stage 2: Builder ============
-FROM node:20-alpine AS builder
-WORKDIR /app
-
-# Copy dependencies (npm workspaces hoists to root node_modules)
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy package.json files for workspace resolution
-COPY package.json ./
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/backend/package.json ./packages/backend/
 
 # Copy source code
 COPY packages/shared ./packages/shared
@@ -44,7 +32,7 @@ RUN npm run build
 WORKDIR /app/packages/backend
 RUN npm run build
 
-# ============ Stage 3: Production ============
+# ============ Stage 2: Production ============
 FROM node:20-alpine AS production
 WORKDIR /app
 
@@ -60,7 +48,7 @@ COPY packages/frontend/package.json ./packages/frontend/
 COPY packages/worker/package.json ./packages/worker/
 COPY packages/admin/package.json ./packages/admin/
 
-RUN npm ci --only=production && \
+RUN npm ci --omit=dev && \
     npm cache clean --force
 
 # Copy built artifacts
