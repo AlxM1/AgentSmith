@@ -8,7 +8,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { db } from '../db/index.js';
 import { users, workflows, executions, credentials } from '../db/schema.js';
 import { eq, desc, sql, count, and, gte, lte, like, or } from 'drizzle-orm';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 import { logger } from '../lib/logger.js';
 import { queueService } from '../services/QueueService.js';
 import bcrypt from 'bcryptjs';
@@ -18,8 +18,8 @@ import os from 'os';
 const router = Router();
 
 // All admin routes require authentication and admin role
-router.use(authenticateToken);
-router.use(requireRole(['admin']));
+router.use(authenticate);
+router.use(requireRole('admin'));
 
 // ============================================================================
 // DASHBOARD & STATS

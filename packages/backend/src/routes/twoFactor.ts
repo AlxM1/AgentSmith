@@ -8,7 +8,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { twoFactorService, hashBackupCode } from '../services/TwoFactorService.js';
 import { logger } from '../lib/logger.js';
 import { encrypt, decrypt } from '../lib/crypto.js';
@@ -17,7 +17,7 @@ import { config } from '../config/index.js';
 const router = Router();
 
 // All routes require authentication
-router.use(authenticateToken);
+router.use(authenticate);
 
 /**
  * GET /api/v1/auth/2fa/status
