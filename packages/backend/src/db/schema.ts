@@ -8,13 +8,13 @@ export const userRoleEnum = pgEnum('user_role', ['admin', 'user', 'viewer']);
 export const workflowStatusEnum = pgEnum('workflow_status', ['draft', 'active', 'inactive', 'error']);
 export const executionStatusEnum = pgEnum('execution_status', ['pending', 'running', 'success', 'failed', 'cancelled', 'waiting']);
 export const executionModeEnum = pgEnum('execution_mode', ['manual', 'trigger', 'webhook', 'retry', 'internal', 'cli']);
+export const ssoProviderEnum = pgEnum('sso_provider', ['google', 'github', 'microsoft', 'okta', 'saml', 'oidc']);
 
 // Users table
 export const users = pgTable('users', {
   id: varchar('id', { length: 50 }).primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
-  password: varchar('password', { length: 255 }), // Hashed password (nullable for SSO-only users)
-  passwordHash: varchar('password_hash', { length: 255 }), // Legacy field, kept for compatibility
+  passwordHash: varchar('password_hash', { length: 255 }), // Hashed password (nullable for SSO-only users)
   firstName: varchar('first_name', { length: 100 }),
   lastName: varchar('last_name', { length: 100 }),
   avatar: varchar('avatar', { length: 500 }),
@@ -24,16 +24,15 @@ export const users = pgTable('users', {
   settings: jsonb('settings'),
   // SSO fields
   ssoId: varchar('sso_id', { length: 255 }),
-  ssoProvider: varchar('sso_provider', { length: 50 }),
+  ssoProvider: ssoProviderEnum('sso_provider'),
   // 2FA fields
   twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
-  twoFactorSecret: text('two_factor_secret'), // Encrypted TOTP secret
-  twoFactorBackupCodes: jsonb('two_factor_backup_codes'), // Hashed backup codes
+  twoFactorSecret: varchar('two_factor_secret', { length: 255 }), // Encrypted TOTP secret
+  twoFactorBackupCodes: text('two_factor_backup_codes').array(), // Hashed backup codes
   // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  lastLogin: timestamp('last_login'),
-  lastLoginAt: timestamp('last_login_at'), // Legacy field
+  lastLoginAt: timestamp('last_login_at'),
 });
 
 // Workflows table
