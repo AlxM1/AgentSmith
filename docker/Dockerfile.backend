@@ -40,6 +40,9 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S agentsmith -u 1001 -G nodejs
 
+# Install wget for health checks
+RUN apk add --no-cache wget
+
 # Install production dependencies only (all packages for npm workspaces)
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json ./packages/shared/
