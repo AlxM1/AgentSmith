@@ -35,7 +35,8 @@ FROM nginx:alpine AS production
 
 # Security: Create custom user
 RUN addgroup -g 1001 -S nginx-app && \
-    adduser -S nginx-app -u 1001 -G nginx-app
+    adduser -S nginx-app -u 1001 -G nginx-app && \
+    apk add --no-cache wget
 
 # Copy custom nginx config
 COPY docker/nginx/admin.conf /etc/nginx/nginx.conf
@@ -51,7 +52,7 @@ RUN mkdir -p /var/cache/nginx /var/run && \
 EXPOSE 3001
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget -q -O /dev/null http://localhost:3001/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
