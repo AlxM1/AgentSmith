@@ -15,9 +15,65 @@ import type { IUserPublicData } from '@agentsmith/shared';
 
 const router = Router();
 
+// Rate limiter for login attempts (in-memory, per IP)
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const LOGIN_RATE_LIMIT = 5; // max attempts
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minute window
+const LOGIN_LOCKOUT_MS = 30 * 60 * 1000; // 30 minute lockout after exceeded
+
+function checkLoginRateLimit(ip: string): { allowed: boolean; retryAfterSec?: number } {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return { allowed: true };
+  }
+  
+  if (entry.count >= LOGIN_RATE_LIMIT) {
+    const retryAfterSec = Math.ceil((entry.resetAt - now) / 1000);
+    return { allowed: false, retryAfterSec };
+  }
+  
+  entry.count++;
+  return { allowed: true };
+}
+
+function recordFailedLogin(ip: string) {
+  const entry = loginAttempts.get(ip);
+  if (entry && entry.count >= LOGIN_RATE_LIMIT) {
+    // Extend lockout on continued attempts
+    entry.resetAt = Date.now() + LOGIN_LOCKOUT_MS;
+  }
+}
+
+function clearLoginAttempts(ip: string) {
+  loginAttempts.delete(ip);
+}
+
+// Cleanup stale entries every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of loginAttempts) {
+    if (now > entry.resetAt) loginAttempts.delete(ip);
+  }
+}, 10 * 60 * 1000);
+
 // Login
 router.post('/login', validateBody(loginSchema), async (req, res, next) => {
   try {
+    // Rate limit check
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const rateCheck = checkLoginRateLimit(clientIp);
+    if (!rateCheck.allowed) {
+      logger.warn(`Login rate limit exceeded for IP: ${clientIp}`);
+      res.set('Retry-After', String(rateCheck.retryAfterSec));
+      return res.status(429).json({
+        success: false,
+        error: { code: 'RATE_LIMITED', message: `Too many login attempts. Try again in ${rateCheck.retryAfterSec} seconds.` }
+      });
+    }
+
     const { email, password } = req.body;
 
     // Find user
@@ -36,8 +92,12 @@ router.post('/login', validateBody(loginSchema), async (req, res, next) => {
     // Verify password
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
+      recordFailedLogin(clientIp);
       throw new UnauthorizedError('Invalid email or password');
     }
+
+    // Successful login — clear rate limit
+    clearLoginAttempts(clientIp);
 
     // Update last login
     await db.update(users)

@@ -143,13 +143,15 @@ export class WorkflowExecutor {
 
   private async executeDownstreamNodes(sourceNodeId: string): Promise<void> {
     // Find connections from this node
+    // Support both {source, target} and {sourceNodeId, targetNodeId} field formats
     const connections = this.workflow.connections.filter(
-      (conn) => conn.source === sourceNodeId
+      (conn) => conn.source === sourceNodeId || conn.sourceNodeId === sourceNodeId
     );
 
     for (const connection of connections) {
+      const targetId = connection.target || connection.targetNodeId;
       const targetNode = this.workflow.nodes.find(
-        (n) => n.id === connection.target
+        (n) => n.id === targetId
       );
 
       if (!targetNode) continue;
@@ -185,13 +187,26 @@ export class WorkflowExecutor {
     status: 'success' | 'failed',
     error?: unknown
   ): IExecutionData {
+    // BUG 3 FIX: Check if any node had an error status and escalate overall status
+    let effectiveStatus = status;
+    if (status === 'success') {
+      // Scan all run data for any node-level errors
+      const hasNodeErrors = Object.values(this.runData).some((runs) =>
+        runs.some((run) => run.executionStatus === 'error')
+      );
+      if (hasNodeErrors) {
+        effectiveStatus = 'failed';
+      }
+    }
+
     const executionData: IExecutionData = {
       resultData: {
         runData: this.runData,
+        status: effectiveStatus,
       },
     };
 
-    if (status === 'failed' && error) {
+    if ((effectiveStatus === 'failed' || status === 'failed') && error) {
       executionData.resultData.metadata = {
         error: {
           message: error instanceof Error ? error.message : 'Unknown error',

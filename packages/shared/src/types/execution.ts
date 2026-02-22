@@ -37,6 +37,8 @@ export interface IExecutionResultData {
   pinData?: Record<string, INodeExecutionOutput[]>;
   lastNodeExecuted?: string;
   metadata?: Record<string, unknown>;
+  // Effective status after node-level error escalation (set by WorkflowExecutor)
+  status?: 'success' | 'failed';
 }
 
 export interface IRunData {

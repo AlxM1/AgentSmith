@@ -84,8 +84,17 @@ class QueueService {
 
       // Listen for job completion
       this.queueEvents.on('completed', async ({ jobId, returnvalue }) => {
-        logger.info(`Execution completed: ${jobId}`);
-        await this.updateExecutionStatus(jobId, 'success', returnvalue);
+        // BUG 3 FIX: check if the execution data itself reports failure
+        // (node-level errors are captured in resultData.status by WorkflowExecutor)
+        let effectiveStatus: ExecutionStatus = 'success';
+        try {
+          const parsed = typeof returnvalue === 'string' ? JSON.parse(returnvalue) : returnvalue;
+          if (parsed?.resultData?.status === 'failed') {
+            effectiveStatus = 'failed';
+          }
+        } catch (_) { /* unparseable result — keep 'success' */ }
+        logger.info(`Execution completed: ${jobId}`, { effectiveStatus });
+        await this.updateExecutionStatus(jobId, effectiveStatus, returnvalue);
       });
 
       // Listen for job failure

@@ -36,6 +36,9 @@ export interface IConnection {
   target: string;
   targetHandle?: string;
   type?: string;
+  // Alternative field names used by some workflow sources (frontend may send either format)
+  sourceNodeId?: string;
+  targetNodeId?: string;
 }
 
 export interface INodeTypeDescription {

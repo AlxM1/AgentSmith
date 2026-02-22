@@ -98,6 +98,11 @@ export class NodeExecutor {
       'agentsmith.merge': this.handleMerge.bind(this),
       'agentsmith.wait': this.handleWait.bind(this),
       'agentsmith.noOp': this.handleNoOp.bind(this),
+      // Content Intelligence nodes
+      'agentsmith.scrapeYouTube': this.handleScrapeYouTube.bind(this),
+      'agentsmith.scrapeTwitter': this.handleScrapeTwitter.bind(this),
+      'agentsmith.scrapeWeb': this.handleScrapeWeb.bind(this),
+      'agentsmith.monitorRss': this.handleMonitorRss.bind(this),
     };
 
     return handlers[nodeType] || this.handleDefault.bind(this);
@@ -496,5 +501,207 @@ export class NodeExecutor {
   ): Promise<INodeExecutionOutput[]> {
     logger.warn(`Unknown node type: ${node.type}, passing through`);
     return input;
+  }
+
+  // Content Intelligence handlers
+  private async handleScrapeYouTube(
+    node: INode,
+    input: INodeExecutionOutput[]
+  ): Promise<INodeExecutionOutput[]> {
+    // FIX: Default URL corrected from 'http://content-intel:3012' (wrong name+port)
+    // to 'http://raiser-content-intel:3015'. Also fixed endpoint from /api/scrape
+    // (no route) to /api/scrape/all which triggers all tracked YouTube creators.
+    const contentIntelUrl = process.env.CONTENT_INTEL_URL || 'http://raiser-content-intel:3015';
+    const apiKey = process.env.CONTENT_INTEL_API_KEY;
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['X-API-Key'] = apiKey;
+
+      const response = await axios.post(
+        `${contentIntelUrl}/api/scrape/all`,
+        {},
+        { headers, timeout: 300000 } // 5-minute timeout for scraping all creators
+      );
+
+      return [{
+        json: {
+          success: true,
+          source: 'youtube',
+          data: response.data,
+        },
+      }];
+    } catch (error) {
+      return [{
+        json: {
+          success: false,
+          source: 'youtube',
+          error: error instanceof Error ? error.message : 'Scraping failed',
+        },
+      }];
+    }
+  }
+
+  private async handleScrapeTwitter(
+    node: INode,
+    input: INodeExecutionOutput[]
+  ): Promise<INodeExecutionOutput[]> {
+    const results: INodeExecutionOutput[] = [];
+    const contentIntelUrl = process.env.CONTENT_INTEL_URL || 'http://content-intel:3012';
+    const apiKey = process.env.CONTENT_INTEL_API_KEY;
+
+    for (let i = 0; i < input.length; i++) {
+      const item = input[i];
+      const params = this.resolveParams(node.parameters as {
+        url?: string;
+        includeThread?: boolean;
+        includeReplies?: boolean;
+      }, input, i);
+
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['X-API-Key'] = apiKey;
+
+        const response = await axios.post(
+          `${contentIntelUrl}/api/scrape`,
+          {
+            source: 'twitter',
+            url: params.url,
+            options: {
+              include_thread: params.includeThread,
+              include_replies: params.includeReplies,
+            },
+          },
+          { headers, timeout: 30000 }
+        );
+
+        results.push({
+          json: {
+            success: true,
+            source: 'twitter',
+            url: params.url,
+            data: response.data,
+          },
+        });
+      } catch (error) {
+        results.push({
+          json: {
+            success: false,
+            source: 'twitter',
+            url: params.url,
+            error: error instanceof Error ? error.message : 'Scraping failed',
+          },
+        });
+      }
+    }
+
+    return results;
+  }
+
+  private async handleScrapeWeb(
+    node: INode,
+    input: INodeExecutionOutput[]
+  ): Promise<INodeExecutionOutput[]> {
+    const results: INodeExecutionOutput[] = [];
+    const contentIntelUrl = process.env.CONTENT_INTEL_URL || 'http://content-intel:3012';
+    const apiKey = process.env.CONTENT_INTEL_API_KEY;
+
+    for (let i = 0; i < input.length; i++) {
+      const item = input[i];
+      const params = this.resolveParams(node.parameters as {
+        url?: string;
+        extractContent?: boolean;
+        extractMetadata?: boolean;
+      }, input, i);
+
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['X-API-Key'] = apiKey;
+
+        const response = await axios.post(
+          `${contentIntelUrl}/api/scrape`,
+          {
+            source: 'web',
+            url: params.url,
+            options: {
+              extract_content: params.extractContent !== false,
+              extract_metadata: params.extractMetadata !== false,
+            },
+          },
+          { headers, timeout: 30000 }
+        );
+
+        results.push({
+          json: {
+            success: true,
+            source: 'web',
+            url: params.url,
+            data: response.data,
+          },
+        });
+      } catch (error) {
+        results.push({
+          json: {
+            success: false,
+            source: 'web',
+            url: params.url,
+            error: error instanceof Error ? error.message : 'Scraping failed',
+          },
+        });
+      }
+    }
+
+    return results;
+  }
+
+  private async handleMonitorRss(
+    node: INode,
+    input: INodeExecutionOutput[]
+  ): Promise<INodeExecutionOutput[]> {
+    const results: INodeExecutionOutput[] = [];
+    const contentIntelUrl = process.env.CONTENT_INTEL_URL || 'http://content-intel:3012';
+    const apiKey = process.env.CONTENT_INTEL_API_KEY;
+
+    for (let i = 0; i < input.length; i++) {
+      const item = input[i];
+      const params = this.resolveParams(node.parameters as {
+        feedUrl?: string;
+        maxItems?: number;
+      }, input, i);
+
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['X-API-Key'] = apiKey;
+
+        const response = await axios.post(
+          `${contentIntelUrl}/api/rss/monitor`,
+          {
+            feed_url: params.feedUrl,
+            max_items: params.maxItems || 10,
+          },
+          { headers, timeout: 30000 }
+        );
+
+        results.push({
+          json: {
+            success: true,
+            source: 'rss',
+            feedUrl: params.feedUrl,
+            items: response.data.items || [],
+          },
+        });
+      } catch (error) {
+        results.push({
+          json: {
+            success: false,
+            source: 'rss',
+            feedUrl: params.feedUrl,
+            error: error instanceof Error ? error.message : 'RSS monitoring failed',
+          },
+        });
+      }
+    }
+
+    return results;
   }
 }
