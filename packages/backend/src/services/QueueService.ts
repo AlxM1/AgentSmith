@@ -731,8 +731,8 @@ export function findTriggerNodes(workflow: IWorkflow): {
   const nodes = workflow.nodes || [];
 
   return {
-    scheduleTriggers: nodes.filter(n => n.type === 'scheduleTrigger' || n.type === 'Schedule'),
-    webhookTriggers: nodes.filter(n => n.type === 'webhookTrigger' || n.type === 'Webhook'),
-    manualTriggers: nodes.filter(n => n.type === 'manualTrigger' || n.type === 'ManualTrigger'),
+    scheduleTriggers: nodes.filter(n => n.type === 'scheduleTrigger' || n.type === 'Schedule' || n.type === 'agentsmith.scheduleTrigger'),
+    webhookTriggers: nodes.filter(n => n.type === 'webhookTrigger' || n.type === 'Webhook' || n.type === 'agentsmith.webhookTrigger'),
+    manualTriggers: nodes.filter(n => n.type === 'manualTrigger' || n.type === 'ManualTrigger' || n.type === 'agentsmith.manualTrigger'),
   };
 }

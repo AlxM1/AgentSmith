@@ -66,6 +66,13 @@ app.use('/api/', limiter);
 // Request parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+// Handle malformed JSON with 400 instead of 500
+app.use((err: any, req: any, res: any, next: any) => {
+  if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && (err as any).status === 400)) {
+    return res.status(400).json({ error: 'Invalid JSON in request body' });
+  }
+  next(err);
+});
 app.use(cookieParser());
 
 // Compression

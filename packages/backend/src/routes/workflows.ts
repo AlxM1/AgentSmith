@@ -250,7 +250,7 @@ router.post('/:id/activate', async (req, res, next) => {
 
     // Register schedule triggers
     for (const node of triggers.scheduleTriggers) {
-      const cronExpression = node.parameters?.cronExpression as string;
+      const cronExpression = (node.parameters?.cronExpression || node.parameters?.schedule) as string;
       if (cronExpression) {
         try {
           const triggerId = await queueService.registerScheduledTrigger({

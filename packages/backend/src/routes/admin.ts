@@ -68,7 +68,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response, next: NextFun
     const [successfulResult] = await db
       .select({ count: count() })
       .from(executions)
-      .where(eq(executions.status, 'completed'));
+      .where(eq(executions.status, 'success'));
 
     const totalExecutions = totalExecutionsResult?.count || 0;
     const successfulExecutions = successfulResult?.count || 0;
@@ -83,7 +83,7 @@ router.get('/stats/dashboard', async (req: Request, res: Response, next: NextFun
       })
       .from(executions)
       .where(and(
-        eq(executions.status, 'completed'),
+        eq(executions.status, 'success'),
         sql`finished_at IS NOT NULL`
       ));
 
@@ -166,7 +166,7 @@ router.get('/stats/executions/trend', async (req: Request, res: Response, next: 
       .select({
         date: sql<string>`DATE(started_at)`,
         total: count(),
-        successful: sql<number>`SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)`,
+        successful: sql<number>`SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END)`,
         failed: sql<number>`SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END)`,
       })
       .from(executions)
@@ -263,7 +263,7 @@ router.get('/users', async (req: Request, res: Response, next: NextFunction) => 
         lastName: users.lastName,
         role: users.role,
         isActive: users.isActive,
-        lastLogin: users.lastLogin,
+        lastLogin: users.lastLoginAt,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
@@ -301,7 +301,7 @@ router.get('/users/:id', async (req: Request, res: Response, next: NextFunction)
         lastName: users.lastName,
         role: users.role,
         isActive: users.isActive,
-        lastLogin: users.lastLogin,
+        lastLogin: users.lastLoginAt,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
@@ -347,7 +347,7 @@ router.post('/users', async (req: Request, res: Response, next: NextFunction) =>
         email,
         firstName,
         lastName,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
         role,
         isActive: true,
       })
@@ -447,7 +447,7 @@ router.post('/users/:id/reset-password', async (req: Request, res: Response, nex
 
     const [updatedUser] = await db
       .update(users)
-      .set({ password: hashedPassword, updatedAt: new Date() })
+      .set({ passwordHash: hashedPassword, updatedAt: new Date() })
       .where(eq(users.id, req.params.id))
       .returning({ id: users.id, email: users.email });
 
@@ -504,14 +504,14 @@ router.get('/workflows', async (req: Request, res: Response, next: NextFunction)
         name: workflows.name,
         description: workflows.description,
         active: workflows.active,
-        userId: workflows.userId,
+        userId: workflows.createdBy,
         userEmail: users.email,
         nodes: workflows.nodes,
         createdAt: workflows.createdAt,
         updatedAt: workflows.updatedAt,
       })
       .from(workflows)
-      .leftJoin(users, eq(workflows.userId, users.id))
+      .leftJoin(users, eq(workflows.createdBy, users.id))
       .where(whereClause)
       .orderBy(desc(workflows.updatedAt))
       .limit(limit)
@@ -570,13 +570,13 @@ router.get('/workflows/:id', async (req: Request, res: Response, next: NextFunct
         nodes: workflows.nodes,
         connections: workflows.connections,
         settings: workflows.settings,
-        userId: workflows.userId,
+        userId: workflows.createdBy,
         userEmail: users.email,
         createdAt: workflows.createdAt,
         updatedAt: workflows.updatedAt,
       })
       .from(workflows)
-      .leftJoin(users, eq(workflows.userId, users.id))
+      .leftJoin(users, eq(workflows.createdBy, users.id))
       .where(eq(workflows.id, req.params.id));
 
     if (!workflow) {
@@ -683,12 +683,12 @@ router.get('/executions', async (req: Request, res: Response, next: NextFunction
         startedAt: executions.startedAt,
         finishedAt: executions.finishedAt,
         error: executions.error,
-        userId: workflows.userId,
+        userId: workflows.createdBy,
         userEmail: users.email,
       })
       .from(executions)
       .leftJoin(workflows, eq(executions.workflowId, workflows.id))
-      .leftJoin(users, eq(workflows.userId, users.id))
+      .leftJoin(users, eq(workflows.createdBy, users.id))
       .where(whereClause)
       .orderBy(desc(executions.startedAt))
       .limit(limit)
@@ -733,12 +733,12 @@ router.get('/executions/:id', async (req: Request, res: Response, next: NextFunc
         finishedAt: executions.finishedAt,
         data: executions.data,
         error: executions.error,
-        userId: workflows.userId,
+        userId: workflows.createdBy,
         userEmail: users.email,
       })
       .from(executions)
       .leftJoin(workflows, eq(executions.workflowId, workflows.id))
-      .leftJoin(users, eq(workflows.userId, users.id))
+      .leftJoin(users, eq(workflows.createdBy, users.id))
       .where(eq(executions.id, req.params.id));
 
     if (!execution) {
